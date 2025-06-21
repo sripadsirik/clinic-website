@@ -1,0 +1,106 @@
+status,time,patient,doctor,type
+No-Show/Resched,█8:30a,"Herrera, Carmen",MA,TESTING
+No-Show/Resched,█8:40a,"Ghifari, Rajeh",AG,1WKPO
+No-Show/Resched,█10:10a,"Caratachea, Evelia",MA,TESTING
+No-Show/Resched,█11:15a,"Figuigui, Majidah",MA,Injections
+No-Show/Resched,█1:00p,"Smith, Sameul",MA,Comprehensive Exam
+No-Show/Resched,█1:10p,"Tilquist, Joyce",MA,Injections
+No-Show/Resched,█1:15p,"Wallace, Earnest",MA,TESTING
+No-Show/Resched,█1:15p,"Mahmoud, Khetam",DN,FOLLOW UP
+No-Show/Resched,█3:35p,"Fadiel, Shaheen",DN,Routine
+No-Show/Resched,█3:35p,"Mcclain, Angela",AG,TESTING
+No-Show/Resched,█4:10p,"Hamdan, Laith",MA,FOLLOW UP
+No-Show/Resched,█4:30p,"Thompson, Renata",DN,FOLLOW UP
+MD Exit,█8:40a,"Jones, Gwendolyn",MA,TESTING
+MD Exit,█8:50a,"Johnson, John",MA,IN OFFICE PROCEDURES
+MD Exit,█8:55a,"Elewa, Maha",MA,NEW PATIENT
+MD Exit,█9:05a,"Burns, Jacquenette",MA,TESTING
+MD Exit,█9:20a,"Ghousheh, Wael",MA,TESTING
+MD Exit,█9:20a,"Jensen, Victoria",MA,1YR
+MD Exit,█9:40a,"Watson, Tracy",MA,Injections
+MD Exit,█9:45a,"Salem, Basil",MA,Trauma Care
+MD Exit,█9:45a,"Beaugard, Arthurine",MA,TESTING
+MD Exit,█9:55a,"Martinez, Guadalupe",MA,LASERS
+MD Exit,█10:00a,"Jackson, Reginald",MA,Comprehensive Exam
+MD Exit,█10:20a,"Brim, Larry",MA,TESTING
+MD Exit,█10:30a,"Murphy, Henry",MA,TESTING
+MD Exit,█10:40a,"Griffin, Eleanor",MA,TESTING
+MD Exit,█11:00a,"Clark, Mia",MA,FOLLOW UP
+MD Exit,█11:05a,"Wittig, Rita",MA,FOLLOW UP
+MD Exit,█11:10a,"Stephenson, Norma",MA,LASERS
+MD Exit,█11:20a,"Ellis, Cheritha",MA,Injections
+MD Exit,█12:50p,"Lipinski, Norbert",MA,NEW PATIENT
+MD Exit,█1:25p,"Bryant, Mark",MA,NEW PATIENT
+MD Exit,█1:35p,"Gordon, Alice",MA,FOLLOW UP
+MD Exit,█1:40p,"Richardson, Elmore",MA,TESTING
+MD Exit,█1:50p,"Khan, Shamim",MA,TESTING
+MD Exit,█2:00p,"Flowers, Tammye",MA,TESTING
+MD Exit,█2:00p,"Thompson, Velencia",AG,Routine
+MD Exit,█2:10p,"WilliamsShane, Cindy",MA,TESTING
+MD Exit,█2:20p,"Balanoff, Richard",MA,Injections
+MD Exit,█2:25p,"Lopez, Maria",MA,TESTING
+MD Exit,█2:35p,"Alhyari, Jennah",MA,Intermediate Exam
+MD Exit,█2:45p,"Palmore, Audrey",MA,CAT EVAL
+MD Exit,█2:50p,"Potrero, Othon",MA,1YR
+MD Exit,█2:55p,"Ciszewski, Lauren",AG,NEW PATIENT
+MD Exit,█3:00p,"Nigoghossian, Ohannes",MA,TESTING
+MD Exit,█3:25p,"Odwyer, James",MA,TESTING
+MD Exit,█3:35p,"Bendkowski, Sabrina",MA,1YR
+MD Exit,█3:45p,"Awad, Ashraf",MA,TESTING
+MD Exit,█3:55p,"Karim, Saima",MA,Intermediate Exam
+MD Exit,█4:00p,"Jaber, Aida",MA,CAT EVAL
+MD Exit,█4:15p,"Ahmed, Shahida",MA,FOLLOW UP
+MD Exit,█4:25p,"Alshalahi, Ahmad",MA,FOLLOW UP
+MD Exit,█4:30p,"Cain, Pamela",MA,FOLLOW UP
+OD/Post-Op Exit,█8:30a,"Pugh, Linda",DN,TESTING
+OD/Post-Op Exit,█8:30a,"Callas, Diane",AG,1WKPO
+OD/Post-Op Exit,█8:30a,"Valdez, Thomas",AG,1WKPO
+OD/Post-Op Exit,█8:30a,"Stephens, Frank",DN,TESTING
+OD/Post-Op Exit,█8:40a,"Vazquez, Francisco",AG,FOLLOW UP
+OD/Post-Op Exit,█8:50a,"Colvard, Samaro",AG,1YR
+OD/Post-Op Exit,█8:55a,"Shalabi, Shadli",DN,TESTING
+OD/Post-Op Exit,█9:05a,"Williams, Jacqueline",AG,TESTING
+OD/Post-Op Exit,█9:10a,"Roebuck, Rosemary",DN,TESTING
+OD/Post-Op Exit,█9:35a,"Patel, Vasnji",DN,NEW PATIENT
+OD/Post-Op Exit,█9:35a,"Giuliani, Dante",DN,TESTING
+OD/Post-Op Exit,█9:50a,"Patel, Manjulaben",DN,1YR
+OD/Post-Op Exit,█10:00a,"Johnson, Pearl",AG,FOLLOW UP
+OD/Post-Op Exit,█10:05a,"Chambers, Edna",DN,FOLLOW UP
+OD/Post-Op Exit,█10:10a,"White, James",AG,1Month PO
+OD/Post-Op Exit,█10:15a,"Espinoza, Ilian",DN,TESTING
+OD/Post-Op Exit,█10:25a,"Contreras, Susanna",AG,1WKPO
+OD/Post-Op Exit,█10:30a,"Dawson, Rita",DN,TESTING
+OD/Post-Op Exit,█10:30a,"Shaw, Lucy",DN,TESTING
+OD/Post-Op Exit,█10:35a,"Davis, Mary",AG,Routine
+OD/Post-Op Exit,█10:45a,"Kowalski, Edmund",DN,POST OP
+OD/Post-Op Exit,█10:50a,"Mcneal, Marlon",AG,FOLLOW UP
+OD/Post-Op Exit,█10:55a,"Morales, Gabriela",DN,Public Aid 1 YR
+OD/Post-Op Exit,█11:00a,"Torres, Lorena",AG,FOLLOW UP
+OD/Post-Op Exit,█11:10a,"Rendon De Garcia, Adela",DN,TESTING
+OD/Post-Op Exit,█11:10a,"Luckett, Doris",AG,POST OP
+OD/Post-Op Exit,█11:25a,"Galvan, Francisco",AG,POST OP
+OD/Post-Op Exit,█11:25a,"Conroy, Karen",DN,FOLLOW UP
+OD/Post-Op Exit,█11:35a,"Boinski, Constance",AG,1WKPO
+OD/Post-Op Exit,█11:35a,"Matari, Hanaa",DN,IN OFFICE PROCEDURES
+OD/Post-Op Exit,█12:45p,"Yerian, Robin",DN,1YR
+OD/Post-Op Exit,█12:55p,"Whipple, Richard",AG,TESTING
+OD/Post-Op Exit,█1:00p,"Wofford Jenkins, Avon",DN,1YR
+OD/Post-Op Exit,█1:10p,"Macias, Carolina",AG,NEW PATIENT
+OD/Post-Op Exit,█1:25p,"Ghifari, Rajeh",AG,1WKPO
+OD/Post-Op Exit,█1:25p,"AlKhzaleh, Sajedah",DN,FOLLOW UP
+OD/Post-Op Exit,█1:25p,"Nava, Carolina",AG,FOLLOW UP
+OD/Post-Op Exit,█1:35p,"Campos, Jatziri",DN,NEW PATIENT
+OD/Post-Op Exit,█1:35p,"Malloy, Jean",AG,1YR
+OD/Post-Op Exit,█1:35p,"Pollock, Jomita",DN,Routine
+OD/Post-Op Exit,█1:50p,"Conroy, Carmel",DN,Routine
+OD/Post-Op Exit,█2:05p,"Dixon, Charleen",DN,FOLLOW UP
+OD/Post-Op Exit,█2:15p,"Oglesby, Scott",AG,NEW PATIENT
+OD/Post-Op Exit,█2:15p,"Nunez, Rebecca",DN,TESTING
+OD/Post-Op Exit,█2:30p,"Valle, Reyna",DN,TESTING
+OD/Post-Op Exit,█2:40p,"Valdez, Aida",AG,NEW PATIENT
+OD/Post-Op Exit,█2:55p,"Nassan, Jamil",DN,Routine
+OD/Post-Op Exit,█3:10p,"Borre, Sandra",AG,FOLLOW UP
+OD/Post-Op Exit,█3:10p,"Chausse, Meaghan",DN,TESTING
+OD/Post-Op Exit,█3:20p,"Jennings, John",AG,NEW PATIENT
+OD/Post-Op Exit,█3:50p,"Abughoush, Raneem",DN,TESTING
+OD/Post-Op Exit,█4:00p,"Nava, Angel",AG,Comprehensive Exam

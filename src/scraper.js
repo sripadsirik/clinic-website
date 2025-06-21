@@ -3,7 +3,7 @@ require('dotenv').config();
 const fs        = require('fs');
 const path      = require('path');
 const puppeteer = require('puppeteer');
-const Visit     = require('./models/Visit');
+const mongoose  = require('mongoose');
 
 async function clickButtonByText(page, selector, text) {
   await page.waitForSelector(selector, { visible: true });
@@ -18,8 +18,29 @@ async function clickButtonByText(page, selector, text) {
   );
 }
 
+// simple delay helper
+function delay(ms) {
+  return new Promise(res => setTimeout(res, ms));
+}
+
 async function syncVisits(location, date) {
   console.log(`🔍 Starting scrape for ${location} on ${date}`);
+
+  // ── 1) MONGO ────────────────────────────────────────────────────────────────
+  // force using the "visits" database
+  await mongoose.connect(process.env.MONGO_URI, {
+    dbName: 'visits',
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  const db = mongoose.connection.db;
+
+  // build a collection name like "Oak_Lawn_2025-06-18"
+  const safeLoc = location.replace(/\s+/g, '_');
+  const collName = `${safeLoc}_${date}`;
+  const coll = db.collection(collName);
+
+  // ── 2) BROWSER ──────────────────────────────────────────────────────────────
   const browser = await puppeteer.launch({
     headless: false,
     slowMo: 50,
@@ -28,7 +49,7 @@ async function syncVisits(location, date) {
   const page = await browser.newPage();
 
   try {
-    // ─── LOGIN ────────────────────────────────────────────────────────────────
+    // ─ LOGIN ────────────────────────────────────────────────────────────────
     await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle2' });
     try {
       console.log('➡ clicking “I use an email address to login”');
@@ -42,102 +63,119 @@ async function syncVisits(location, date) {
 
     console.log('➡ filling password');
     await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
-    await clickButtonByText(page, 'button', 'Sign In')
-      .catch(() => clickButtonByText(page, 'button', 'Continue'));
+    await clickButtonByText(page, 'button', 'Sign In').catch(() =>
+      clickButtonByText(page, 'button', 'Continue')
+    );
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
-    // ─── PICK PRACTICE ─────────────────────────────────────────────────────────
+    // ─ SELECT PRACTICE ─────────────────────────────────────────────────────
     console.log('🔎 waiting for practice dropdowns');
     await page.waitForSelector('select[name="ui_DDLocation"]', { visible: true, timeout: 20000 });
-    console.log(`➡ selecting Location = ${location}, Department = Comprehensive`);
-    await page.evaluate((loc, dept) => {
-      const selectByText = (sel, txt) => {
+    console.log(`➡ selecting Location = ${location}`);
+    await page.evaluate((loc) => {
+      function selectByText(sel, txt) {
         const S = document.querySelector(sel);
-        for (let opt of S.options) {
-          if (opt.text.trim() === txt) {
-            S.value = opt.value;
+        for (let o of S.options) {
+          if (o.text.trim() === txt) {
+            S.value = o.value;
             S.dispatchEvent(new Event('change', { bubbles: true }));
             return;
           }
         }
-        throw new Error(`Option "${txt}" not found in ${sel}`);
-      };
+        throw new Error(`Option "${txt}" not in ${sel}`);
+      }
       selectByText('select[name="ui_DDLocation"]', loc);
-      selectByText('select[name="ui_DDDept"]', dept);
-    }, location, 'Comprehensive');
+      selectByText('select[name="ui_DDDept"]', 'Comprehensive');
+    }, location);
     await Promise.all([
       page.click('#uiBtnLogin'),
       page.waitForNavigation({ waitUntil: 'networkidle2' }),
     ]);
 
-    // ─── NAVIGATE BY DATE ──────────────────────────────────────────────────────
-    console.log(`➡ going straight to date ${date}`);
-    const [Y, M, D] = date.split('-');
-    const url = new URL(page.url());
-    url.searchParams.set('Date', `${parseInt(M)}/${parseInt(D)}/${Y}`);
-    await page.goto(url.toString(), { waitUntil: 'networkidle2' });
+    // ─ SET DATE ──────────────────────────────────────────────────────────────
+    console.log(`➡ setting date picker to ${date}`);
+    await page.waitForSelector('#datepicker', { visible: true });
+    await page.evaluate(d => {
+      const [Y, M, D] = d.split('-').map(n => +n);
+      const dp = $('#datepicker').data('kendoDatePicker');
+      dp.value(new Date(Y, M - 1, D));
+      dp.trigger('change');
+    }, date);
+    // give grid a moment to refresh
+    await delay(2000);
 
-    // ─── WAIT FOR GRID TO LOAD ─────────────────────────────────────────────────
-    console.log('🔎 waiting for at least one gray‐out entry');
-    await page.waitForSelector('li.GrayOutListItem', { visible: true, timeout: 15000 });
+    // ─ WAIT FOR BOXES ───────────────────────────────────────────────────────
+    console.log('🔎 waiting for MD Exit / OD-Post-Op Exit / No-Show');
+    await Promise.all([
+      page.waitForSelector('#boxtitle66',  { visible: true, timeout: 15000 }),
+      page.waitForSelector('#boxtitle366',{ visible: true, timeout: 15000 }),
+      page.waitForSelector('#boxtitle63',  { visible: true, timeout: 15000 }),
+    ]);
 
-    // ─── SCRAPE EVERY GRAY‐OUT LIST ITEM ───────────────────────────────────────
-    const visits = await page.$$eval('li.GrayOutListItem', els =>
-      els
-        .map(el => {
-          const raw     = el.innerText.trim();
-          const parts   = raw.split(/\s+/);
-          const time    = /\d/.test(parts[0]) ? parts[0] : null;
-          const patient = parts.slice(1).join(' ');
-          const title   = el.getAttribute('title') || '';
-          const mIn     = title.match(/Check In:\s*([0-9:APM ]+)/);
-          const mPs     = title.match(/Portal Status:\s*([A-Za-z ]+)/);
-          return {
-            time,
-            patient,
-            status:   'GrayOut',
-            checkIn:  mIn  ? mIn[1].trim() : null,
-            portal:   mPs  ? mPs[1].trim() : null,
-          };
-        })
-        .filter(r => r.time && r.patient)
+    // ─ SCRAPE ──────────────────────────────────────────────────────────────
+    const visits = await page.$$eval(
+      '#box66 li, #box366 li, #box63 li',
+      els => els.map(el => {
+        const raw     = el.innerText.trim();
+        const [time, ...rest] = raw.split(/\s+/);
+        const patient = rest.join(' ');
+
+        const title = el.getAttribute('title') || '';
+        const mDoc  = title.match(/Doctor:\s*([^\n]+)/);
+        const mTyp  = title.match(/Type:\s*([^\n]+)/);
+
+        const boxId     = el.closest('ul[data-role="droptarget"]').id;
+        const statusMap = {
+          box66:  'MD Exit',
+          box366: 'OD/Post-Op Exit',
+          box63:  'No-Show/Resched'
+        };
+        const status = statusMap[boxId] || null;
+
+        return {
+          location:  window._SCRAPE_LOCATION || null,
+          date:      window._SCRAPE_DATE   || null,
+          status,
+          time,
+          patient,
+          doctor: mDoc ? mDoc[1].trim() : null,
+          type:   mTyp ? mTyp[1].trim() : null,
+        };
+      })
     );
 
-    // ─── UPSERT INTO MONGO ─────────────────────────────────────────────────────
+    // ─ UPSERT INTO location_date COLLECTION ────────────────────────────────
     let count = 0;
-    for (let v of visits) {
-      await Visit.findOneAndUpdate(
-        { location, date, patient: v.patient, time: v.time },
-        { location, date, ...v },
-        { upsert: true, setDefaultsOnInsert: true }
+    for (const v of visits) {
+      await coll.updateOne(
+        { location: v.location, date: v.date, patient: v.patient, time: v.time },
+        { $set: v },
+        { upsert: true }
       );
       count++;
     }
-    console.log(`✅ All done!  ${count} records upserted.`);
+    console.log(`✅ Upserted ${count} records into "${collName}"`);
 
-    // ─── DUMP TO CSV ───────────────────────────────────────────────────────────
+    // ─ OPTIONAL: dump CSV ──────────────────────────────────────────────────
     fs.mkdirSync('logs', { recursive: true });
-    const csvPath = path.join('logs', `${location.replace(/\s+/g, '_')}_${date}.csv`);
-    const header  = 'status,time,patient,checkIn,portal\n';
-    const rows    = visits
-      .map(v =>
-        [v.status, v.time, `"${v.patient}"`, v.checkIn || '', v.portal || '']
-        .join(',')
-      ).join('\n');
+    const csvPath = path.join('logs', `${safeLoc}_${date}.csv`);
+    const header  = 'status,time,patient,doctor,type\n';
+    const rows    = visits.map(v =>
+      [v.status, v.time, `"${v.patient}"`, v.doctor||'', v.type||''].join(',')
+    ).join('\n');
     fs.writeFileSync(csvPath, header + rows, 'utf8');
-    console.log(`📝 Wrote ${visits.length} rows to ${csvPath}`);
+    console.log(`📝 Wrote CSV to ${csvPath}`);
 
   } catch (err) {
-    // ─── ON ERROR: DUMP FULL HTML ───────────────────────────────────────────────
     fs.mkdirSync('logs', { recursive: true });
-    const dumpName = `error_${location.replace(/\s+/g,'_')}_${date}.html`;
-    const dumpPath = path.join('logs', dumpName);
-    const html     = await page.content().catch(() => '<could not retrieve page content>');
-    fs.writeFileSync(dumpPath, html, 'utf8');
+    const dump = await page.content().catch(() => '<no page>');
+    const name = `error_${safeLoc}_${date}.html`;
+    fs.writeFileSync(path.join('logs', name), dump, 'utf8');
     console.error(`❌ Scraper error: ${err.message}`);
-    console.error(`📝 Saved full HTML dump to ${dumpPath}`);
+    console.error(`📝 HTML dump: logs/${name}`);
   } finally {
     await browser.close();
+    await mongoose.disconnect();
   }
 }
 

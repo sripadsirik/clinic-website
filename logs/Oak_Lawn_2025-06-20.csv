@@ -1,0 +1,82 @@
+status,time,patient,doctor,type
+No-Show/Resched,█9:05a,"Holmes, Ike",MA,NEW PATIENT
+No-Show/Resched,█9:40a,"Richardson, Hope",MA,FOLLOW UP
+No-Show/Resched,█11:10a,"Deluna, Ricardo",AG,Routine
+No-Show/Resched,█11:25a,"Johnston, Betty",DN,FOLLOW UP
+No-Show/Resched,█12:55p,"Taylor, Shela",AG,TESTING
+No-Show/Resched,█1:15p,"Woods, Otis",DN,FOLLOW UP
+No-Show/Resched,█1:15p,"Williams, Raven",DN,FOLLOW UP
+MD Exit,█8:30a,"Trujillo Bland, Rochelle",MA,NEW PATIENT
+MD Exit,█8:40a,"Scislowizz, Jacob",MA,NEW PATIENT
+MD Exit,█8:50a,"Smith, Pamela",MA,FOLLOW UP
+MD Exit,█8:55a,"Archibald, Kevin",MA,NEW PATIENT
+MD Exit,█9:05a,"Chavez, Fidel",MA,NEW PATIENT
+MD Exit,█9:15a,"Aladdin, Nadia",MA,FOLLOW UP
+MD Exit,█9:20a,"Earl, Leaner",MA,1YR
+MD Exit,█9:30a,"Denton, Earnest",MA,NEW PATIENT
+MD Exit,█9:45a,"Scott, Gwendolyn",MA,NEW PATIENT
+MD Exit,█10:00a,"Williams, Alonzo",MA,NEW PATIENT
+MD Exit,█10:10a,"Vernola, Alice",MA,Comprehensive Exam
+MD Exit,█10:20a,"Robinson, Charles",MA,NEW PATIENT
+MD Exit,█10:30a,"Yiv, Siyeth",MA,TESTING
+MD Exit,█10:40a,"Pratt, James",MA,NEW PATIENT
+MD Exit,█10:50a,"Jennings, Karla",MA,TESTING
+MD Exit,█11:00a,"Mohamed, Heba",MA,FOLLOW UP
+MD Exit,█11:05a,"Ohara, Mary Arhlene",MA,FOLLOW UP
+MD Exit,█11:10a,"Ellis, Lamar",MA,Injections
+MD Exit,█11:15a,"Jones, Sina",MA,FOLLOW UP
+MD Exit,█11:20a,"Atef, Adnan",MA,LASERS
+OD/Post-Op Exit,█8:30a,"Contreras, Fernando",DN,TESTING
+OD/Post-Op Exit,█8:30a,"Morales, Rosalinda",DN,Routine
+OD/Post-Op Exit,█8:30a,"Habibeh, Hanan",AG,POST OP
+OD/Post-Op Exit,█8:35a,"Harper, Esther",AG,POST OP
+OD/Post-Op Exit,█8:40a,"Jones, Latricia",AG,POST OP
+OD/Post-Op Exit,█8:45a,"Phillips, Debra",DN,FOLLOW UP
+OD/Post-Op Exit,█8:50a,"Johnson, Marvin",AG,Comprehensive Exam
+OD/Post-Op Exit,█8:55a,"Mccarty, Anissa",DN,TESTING
+OD/Post-Op Exit,█9:05a,"Bynum, Daisy",AG,TESTING
+OD/Post-Op Exit,█9:10a,"Martisawski, Gertude",DN,NEW PATIENT
+OD/Post-Op Exit,█9:20a,"Daly, Laurence",AG,POST OP
+OD/Post-Op Exit,█9:20a,"Riggins, Damone",AG,POST OP
+OD/Post-Op Exit,█9:25a,"Guillen, Mario",DN,POST OP
+OD/Post-Op Exit,█9:30a,"Lofton, Christanna",AG,TESTING
+OD/Post-Op Exit,█9:35a,"Master, Barbara",DN,1YR
+OD/Post-Op Exit,█9:45a,"Sandoval, Raudel",AG,1Month PO
+OD/Post-Op Exit,█9:50a,"Master, Robyn",DN,NEW PATIENT
+OD/Post-Op Exit,█10:00a,"Mcclain, Constance",AG,1WKPO
+OD/Post-Op Exit,█10:05a,"Liggons, Dorothy",DN,FOLLOW UP
+OD/Post-Op Exit,█10:10a,"ChehrehTab, Tessa",AG,Routine
+OD/Post-Op Exit,█10:15a,"Hoskins Nicholson, Ethel",DN,TESTING
+OD/Post-Op Exit,█10:25a,"Dixon, Gloria",AG,1WKPO
+OD/Post-Op Exit,█10:30a,"Soares, Maria",DN,TESTING
+OD/Post-Op Exit,█10:30a,"Yelvington, Eddie",DN,Routine
+OD/Post-Op Exit,█10:35a,"Love, Karen",AG,Comprehensive Exam
+OD/Post-Op Exit,█10:45a,"Mccray, Orvelle",DN,POST OP
+OD/Post-Op Exit,█10:55a,"Wrobel, Judith",DN,TESTING
+OD/Post-Op Exit,█11:00a,"SmithMcmorris, Benetta",AG,1WKPO
+OD/Post-Op Exit,█11:10a,"Simmons, Dionne",DN,Routine
+OD/Post-Op Exit,█11:25a,"Richardson, Vanessa",AG,POST OP
+OD/Post-Op Exit,█11:35a,"Maller, Daniel",DN,FOLLOW UP
+OD/Post-Op Exit,█11:35a,"Hampton, Robert",AG,1WKPO
+OD/Post-Op Exit,█12:45p,"Meyers, James",DN,TESTING
+OD/Post-Op Exit,█1:00p,"Del Valle, Jose",DN,TESTING
+OD/Post-Op Exit,█1:10p,"Hill, Melinda",AG,NEW PATIENT
+OD/Post-Op Exit,█1:25p,"Banuelos Cabra, Manuela",DN,FOLLOW UP
+OD/Post-Op Exit,█1:25p,"Garcia, Eugenio",AG,1WKPO
+OD/Post-Op Exit,█1:25p,"Towns, Mildred",AG,POST OP
+OD/Post-Op Exit,█1:35p,"Harris, Mary J",DN,1YR
+OD/Post-Op Exit,█1:35p,"Bahena, Maria",AG,Routine
+OD/Post-Op Exit,█1:35p,"Branton, Elaina",DN,TESTING
+OD/Post-Op Exit,█2:00p,"Gonzalez, Jose",AG,Routine
+OD/Post-Op Exit,█2:05p,"Torres, Monica",DN,FOLLOW UP
+OD/Post-Op Exit,█2:45p,"Doku, Sylvia",DN,FOLLOW UP
+OD/Post-Op Exit,█2:55p,"Gallardo, Ramiro",AG,Routine
+OD/Post-Op Exit,█3:10p,"Zayed, Warda",DN,Routine
+OD/Post-Op Exit,█3:20p,"Pringle, Mary",AG,NEW PATIENT
+OD/Post-Op Exit,█3:25p,"Castaneda, Raquel",DN,FOLLOW UP
+OD/Post-Op Exit,█3:25p,"Palenik, Anna",DN,1WKPO
+OD/Post-Op Exit,█3:35p,"Mohammad, Mahmoud",DN,NEW PATIENT
+OD/Post-Op Exit,█3:50p,"Franco, Suzanne",AG,FOLLOW UP
+OD/Post-Op Exit,█3:50p,"Gray, Briana",DN,TESTING
+OD/Post-Op Exit,█4:15p,"Appleton, Michele",AG,FOLLOW UP
+OD/Post-Op Exit,█4:25p,"Souza, Hoberdan",AG,FOLLOW UP
