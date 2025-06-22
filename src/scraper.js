@@ -127,8 +127,13 @@ async function syncLocationsRange(locations, startDate, endDate) {
   // reuse the single mongoose connection from your server
   const db = mongoose.connection.db;
 
-  const browser = await puppeteer.launch({ headless: false, slowMo: 50, defaultViewport: null });
+  // <-- run headless, no window pops up -->
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
   const page    = await browser.newPage();
+
   await loginAndClickSubmit(page);
   await page.waitForSelector('#datepicker', { visible: true, timeout: 30000 });
 
@@ -160,9 +165,11 @@ async function syncLocationsRange(locations, startDate, endDate) {
 
       // optional CSV dump
       fs.mkdirSync('logs_dump', { recursive: true });
-      const csv = path.join('logs_dump', `${safeLoc}_${iso}.csv`);
-      const header = 'status,time,patient,doctor,type\n';
-      const rows   = visits.map(v => [v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(',')).join('\n');
+      const csv     = path.join('logs_dump', `${safeLoc}_${iso}.csv`);
+      const header  = 'status,time,patient,doctor,type\n';
+      const rows    = visits.map(v =>
+        [v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(',')
+      ).join('\n');
       fs.writeFileSync(csv, header + rows, 'utf8');
     }
   }

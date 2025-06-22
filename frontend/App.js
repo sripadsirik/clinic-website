@@ -6,19 +6,19 @@ import {
   Text,
   TextInput,
   Button,
-  FlatList,
   ActivityIndicator,
   StyleSheet,
   Platform,
   Alert,
   Keyboard,
+  ScrollView,
 } from 'react-native'
 import Constants from 'expo-constants'
 import { Picker } from '@react-native-picker/picker'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
-// Safely read expo.extra
+// expo.extra → your dev & prod URLs
 const configExtra =
   (Constants.manifest  && Constants.manifest.extra)  ||
   (Constants.expoConfig && Constants.expoConfig.extra) ||
@@ -50,7 +50,7 @@ function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Location</Text>
         <View style={styles.pickerWrapper}>
           <Picker selectedValue={location} onValueChange={setLocation}>
@@ -86,9 +86,9 @@ function HomeScreen({ navigation }) {
         />
 
         <View style={styles.buttonWrapper}>
-          <Button title="Fetch Visits" onPress={onFetch} />
+          <Button title="Show Leaderboard" onPress={onFetch} />
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   )
 }
@@ -97,15 +97,14 @@ function ResultsScreen({ route, navigation }) {
   const { location, startDate, endDate } = route.params
   const [data, setData]       = useState([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [error, setError]     = useState(null)
 
-  // status filters per location
+  // Which statuses to count per location
   const statusMap = {
     'Orland Park': ['MD Exit','OD Exit'],
     'Oak Lawn':    ['MD Exit','OD/Post-Op Exit'],
     'Albany Park': ['Exit'],
-    'Buffalo Grove':['Exit'],
+    'Buffalo Grove': ['Exit'],
     'OakBrook':    ['Exit'],
     'Schaumburg':  ['Exit'],
   }
@@ -117,7 +116,6 @@ function ResultsScreen({ route, navigation }) {
     try {
       const qs  = new URLSearchParams({ location, startDate, endDate }).toString()
       const url = `${API_BASE}/api/visits?${qs}`
-      console.log('🛠 Fetching →', url)
       const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
@@ -126,7 +124,6 @@ function ResultsScreen({ route, navigation }) {
       setError(e.message)
     } finally {
       setLoading(false)
-      setRefreshing(false)
     }
   }, [location, startDate, endDate])
 
@@ -134,7 +131,7 @@ function ResultsScreen({ route, navigation }) {
     if (startDate && endDate) fetchVisits()
   }, [fetchVisits])
 
-  // build leaderboard
+  // Build leaderboard counts
   const leaderboard = React.useMemo(() => {
     const counts = {}
     data.forEach(v => {
@@ -143,65 +140,47 @@ function ResultsScreen({ route, navigation }) {
       }
     })
     return Object.entries(counts)
-      .map(([doctor,count])=>({doctor,count}))
-      .sort((a,b)=>b.count-a.count)
+      .map(([doctor, count])=>({ doctor, count }))
+      .sort((a,b)=> b.count - a.count)
   }, [data, wantedStatuses])
 
-  if (!startDate||!endDate) {
+  if (!startDate || !endDate) {
     return (
       <View style={styles.center}>
-        <Text style={styles.error}>Missing date params.</Text>
+        <Text style={styles.error}>Missing date parameters.</Text>
         <Button title="Go Back" onPress={()=>navigation.goBack()} />
       </View>
     )
   }
-  if (loading) return <ActivityIndicator style={styles.center} size="large" />
+  if (loading) {
+    return <ActivityIndicator style={styles.center} size="large" />
+  }
   if (error) {
     return (
       <View style={styles.center}>
         <Text style={styles.error}>Error: {error}</Text>
-        <Button title="Retry" onPress={()=>{setLoading(true);fetchVisits()}}/>
+        <Button title="Retry" onPress={fetchVisits} />
       </View>
     )
   }
-  if (data.length===0) {
+  if (leaderboard.length === 0) {
     return (
       <View style={styles.center}>
-        <Text>No visits from {startDate} to {endDate}.</Text>
-        <Button title="Go Back" onPress={()=>navigation.goBack()}/>
+        <Text>No matching visits to build leaderboard.</Text>
+        <Button title="Go Back" onPress={()=>navigation.goBack()} />
       </View>
     )
   }
 
   return (
-    <FlatList
-      style={styles.list}
-      data={data}
-      keyExtractor={item=>item._id}
-      ListHeaderComponent={() => (
-        <View style={styles.leaderboard}>
-          <Text style={styles.leaderboardTitle}>Leaderboard</Text>
-          {leaderboard.map((it,idx)=>(
-            <Text key={it.doctor} style={styles.leaderboardItem}>
-              {idx+1}. Dr {it.doctor}: {it.count} patient{it.count!==1?'s':''}
-            </Text>
-          ))}
-        </View>
-      )}
-      refreshing={refreshing}
-      onRefresh={()=>{setRefreshing(true);fetchVisits()}}
-      renderItem={({item})=>(
-        <View style={styles.item}>
-          <Text style={styles.date}>
-            {item.location} — {item.date} @ {item.time}
-          </Text>
-          <Text style={styles.detail}>
-            {item.patient} • Dr {item.doctor||'—'} • {item.type||'—'}
-          </Text>
-          <Text style={styles.status}>{item.status||'—'}</Text>
-        </View>
-      )}
-    />
+    <ScrollView contentContainerStyle={styles.leaderboardContainer}>
+      <Text style={styles.leaderboardTitle}>Leaderboard</Text>
+      {leaderboard.map((item, idx) => (
+        <Text key={item.doctor} style={styles.leaderboardItem}>
+          {idx + 1}. Dr {item.doctor}: {item.count} patient{item.count !== 1 ? 's' : ''}
+        </Text>
+      ))}
+    </ScrollView>
   )
 }
 
@@ -210,10 +189,7 @@ const Stack = createNativeStackNavigator()
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator 
-        initialRouteName="Home" 
-        screenOptions={{ headerTitleAlign:'center' }}
-      >
+      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerTitleAlign:'center' }}>
         <Stack.Screen name="Home"    component={HomeScreen}    />
         <Stack.Screen name="Results" component={ResultsScreen} />
       </Stack.Navigator>
@@ -222,31 +198,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe:            { flex:1, backgroundColor:'#fff' },
-  container:       { flex:1, padding:16 },
-  label:           { fontSize:16, marginVertical:8 },
-  pickerWrapper:   { borderWidth:1, borderColor:'#ccc', borderRadius:4, marginBottom:16 },
-  input:           { borderWidth:1, borderColor:'#ccc', borderRadius:4, padding:8, marginBottom:16 },
-  buttonWrapper:   { marginVertical:16 },
-  center:          { flex:1, justifyContent:'center', alignItems:'center' },
-  error:           { color:'red', marginBottom:8 },
-  list:            { backgroundColor:'#f9f9f9' },
-  leaderboard:     { padding:12, backgroundColor:'#eef', margin:16, borderRadius:6 },
-  leaderboardTitle:{ fontSize:18, fontWeight:'700', marginBottom:8 },
-  leaderboardItem: { fontSize:16, marginVertical:2 },
-  item:            {
-                    backgroundColor:'#fff',
-                    padding:12,
-                    marginVertical:6,
-                    marginHorizontal:16,
-                    borderRadius:6,
-                    shadowColor:'#000',
-                    shadowOpacity:0.1,
-                    shadowOffset:{width:0,height:1},
-                    shadowRadius:2,
-                    elevation:2,
-                  },
-  date:            { fontWeight:'600' },
-  detail:          { marginTop:4, fontSize:14 },
-  status:          { marginTop:4, fontStyle:'italic', color:'#555', fontSize:12 },
+  safe:               { flex:1, backgroundColor:'#fff' },
+  container:          { padding:16 },
+  label:              { fontSize:16, marginVertical:8 },
+  pickerWrapper:      { borderWidth:1, borderColor:'#ccc', borderRadius:4, marginBottom:16 },
+  input:              { borderWidth:1, borderColor:'#ccc', borderRadius:4, padding:8, marginBottom:16 },
+  buttonWrapper:      { marginVertical:16 },
+  center:             { flex:1, justifyContent:'center', alignItems:'center' },
+  error:              { color:'red', marginBottom:8 },
+  leaderboardContainer:{ padding:16 },
+  leaderboardTitle:   { fontSize:20, fontWeight:'700', marginBottom:12 },
+  leaderboardItem:    { fontSize:16, marginVertical:4 },
 })
