@@ -27,7 +27,7 @@
     },
     "extra": {
       "apiBaseDev":  "http://192.168.68.79:4000",     
-      "apiBaseProd": "https://api.yourclinic.com"       
+      "apiBaseProd": "https://clinic-website-api.onrender.com"       
     }
   }
 }

@@ -20,7 +20,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
 // ——— HOST DETECTION ———
 // Your prod API:
-const apiBaseProd = 'https://api.yourclinic.com'
+const apiBaseProd = 'https://clinic-website-api.onrender.com'
 
 // Figure out a dev host that clients can reach:
 // • On web, use the page’s host
