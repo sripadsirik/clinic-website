@@ -1,12 +1,14 @@
+// src/index.js
 require('dotenv').config();
 const express  = require('express');
+const cors     = require('cors');
 const mongoose = require('mongoose');
 const { syncLocationsRange } = require('./scraper');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-// connect once to your “visits” DB
+// 1) connect once to your “visits” database
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser:    true,
   useUnifiedTopology: true,
@@ -18,17 +20,11 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1);
   });
 
-app.use(express.json());
+// 2) middleware
+app.use(cors());           // allow cross-origin from your Expo web client
+app.use(express.json());   // parse JSON bodies
 
-/**
- * GET /api/sync
- * required:
- *   • location=Foo   OR   • locations[]=Foo&locations[]=Bar
- * either:
- *   • date=YYYY-MM-DD
- * OR
- *   • startDate=YYYY-MM-DD & endDate=YYYY-MM-DD
- */
+// 3) trigger a scrape
 app.get('/api/sync', async (req, res) => {
   const { date, startDate, endDate } = req.query;
   let locations = req.query.locations;
@@ -55,8 +51,55 @@ app.get('/api/sync', async (req, res) => {
   }
 });
 
+// 4) fetch visits from Mongo
+app.get('/api/visits', async (req, res) => {
+  // allow either ?location=Foo or ?locations[]=Foo&locations[]=Bar
+  let locations = req.query.locations;
+  const single  = req.query.location;
+  if (!locations) {
+    if (single) locations = [single];
+    else return res.status(400).json({ error:'location or locations[] required' });
+  }
+
+  // date=YYYY-MM-DD OR startDate & endDate
+  let from, to;
+  if (req.query.date) {
+    from = to = req.query.date;
+  } else {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error:'provide date=YYYY-MM-DD or startDate & endDate' });
+    }
+    from = startDate;
+    to   = endDate;
+  }
+
+  try {
+    const db = mongoose.connection.db;
+    let all = [];
+
+    for (const loc of locations) {
+      const safeLoc = loc.replace(/\s+/g,'_');
+      const coll    = db.collection(safeLoc);
+
+      // our documents have date: "YYYY-MM-DD", so lexicographical compare works
+      const docs = await coll
+        .find({ date: { $gte: from, $lte: to } })
+        .sort({ date: 1, time: 1 })
+        .toArray();
+
+      all = all.concat(docs);
+    }
+
+    return res.json(all);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/', (req, res) => {
-  res.send('🚀 visits-scraper API up; try GET /api/sync');
+  res.send('🚀 visits-scraper API up; try GET /api/sync or /api/visits');
 });
 
 app.listen(PORT, () => {
