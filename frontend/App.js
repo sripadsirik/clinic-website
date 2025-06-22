@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   SafeAreaView,
+  ScrollView,
   View,
   Text,
   TextInput,
@@ -11,23 +12,38 @@ import {
   Platform,
   Alert,
   Keyboard,
-  ScrollView,
 } from 'react-native'
 import Constants from 'expo-constants'
 import { Picker } from '@react-native-picker/picker'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
-// expo.extra → your dev & prod URLs
-const configExtra =
-  (Constants.manifest  && Constants.manifest.extra)  ||
-  (Constants.expoConfig && Constants.expoConfig.extra) ||
-  {}
-const {
-  apiBaseDev  = 'http://192.168.68.79:4000',
-  apiBaseProd = 'https://api.yourclinic.com',
-} = configExtra
-const API_BASE = __DEV__ ? apiBaseDev : apiBaseProd
+// ——— HOST DETECTION ———
+// Your prod API:
+const apiBaseProd = 'https://api.yourclinic.com'
+
+// Figure out a dev host that clients can reach:
+// • On web, use the page’s host
+// • On native, use Expo’s debuggerHost (or fallback to localhost)
+let devHost = 'localhost'
+if (__DEV__) {
+  if (Platform.OS === 'web') {
+    devHost = window.location.hostname || 'localhost'
+  } else {
+    // Constants.manifest is available in classic managed apps,
+    // Constants.expoConfig.hostUri in bare or with EAS.
+    const dbg = Constants.manifest?.debuggerHost
+             || Constants.expoConfig?.hostUri
+             || ''
+    const raw = dbg.split(':')[0]
+    if (raw && raw !== '0.0.0.0') devHost = raw
+  }
+}
+
+export const API_BASE = __DEV__
+  ? `http://${devHost}:4000`
+  : apiBaseProd
+// ——————————————————————————————————————————————————
 
 function HomeScreen({ navigation }) {
   const [location,  setLocation]  = useState('Oak Lawn')
@@ -95,20 +111,20 @@ function HomeScreen({ navigation }) {
 
 function ResultsScreen({ route, navigation }) {
   const { location, startDate, endDate } = route.params
-  const [data, setData]       = useState([])
+  const [data,   setData]    = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [error,   setError]   = useState(null)
 
-  // Which statuses to count per location
+  // Which statuses we care about per location
   const statusMap = {
     'Orland Park': ['MD Exit','OD Exit'],
     'Oak Lawn':    ['MD Exit','OD/Post-Op Exit'],
     'Albany Park': ['Exit'],
-    'Buffalo Grove': ['Exit'],
+    'Buffalo Grove':['Exit'],
     'OakBrook':    ['Exit'],
     'Schaumburg':  ['Exit'],
   }
-  const wantedStatuses = statusMap[location] || []
+  const wanted = statusMap[location] || []
 
   const fetchVisits = useCallback(async () => {
     setError(null)
@@ -116,6 +132,7 @@ function ResultsScreen({ route, navigation }) {
     try {
       const qs  = new URLSearchParams({ location, startDate, endDate }).toString()
       const url = `${API_BASE}/api/visits?${qs}`
+      console.log('⛵ Fetching →', url)
       const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
@@ -131,18 +148,18 @@ function ResultsScreen({ route, navigation }) {
     if (startDate && endDate) fetchVisits()
   }, [fetchVisits])
 
-  // Build leaderboard counts
-  const leaderboard = React.useMemo(() => {
-    const counts = {}
+  // Build leaderboard
+  const board = React.useMemo(() => {
+    const cnt = {}
     data.forEach(v => {
-      if (wantedStatuses.includes(v.status) && v.doctor) {
-        counts[v.doctor] = (counts[v.doctor]||0) + 1
+      if (wanted.includes(v.status) && v.doctor) {
+        cnt[v.doctor] = (cnt[v.doctor]||0) + 1
       }
     })
-    return Object.entries(counts)
+    return Object.entries(cnt)
       .map(([doctor, count])=>({ doctor, count }))
-      .sort((a,b)=> b.count - a.count)
-  }, [data, wantedStatuses])
+      .sort((a,b)=>b.count - a.count)
+  }, [data, wanted])
 
   if (!startDate || !endDate) {
     return (
@@ -163,7 +180,7 @@ function ResultsScreen({ route, navigation }) {
       </View>
     )
   }
-  if (leaderboard.length === 0) {
+  if (board.length === 0) {
     return (
       <View style={styles.center}>
         <Text>No matching visits to build leaderboard.</Text>
@@ -175,9 +192,9 @@ function ResultsScreen({ route, navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.leaderboardContainer}>
       <Text style={styles.leaderboardTitle}>Leaderboard</Text>
-      {leaderboard.map((item, idx) => (
+      {board.map((item, i) => (
         <Text key={item.doctor} style={styles.leaderboardItem}>
-          {idx + 1}. Dr {item.doctor}: {item.count} patient{item.count !== 1 ? 's' : ''}
+          {i+1}. Dr {item.doctor}: {item.count} patient{item.count !== 1 ? 's' : ''}
         </Text>
       ))}
     </ScrollView>
@@ -189,8 +206,11 @@ const Stack = createNativeStackNavigator()
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerTitleAlign:'center' }}>
-        <Stack.Screen name="Home"    component={HomeScreen}    />
+      <Stack.Navigator 
+        initialRouteName="Home" 
+        screenOptions={{ headerTitleAlign:'center' }}
+      >
+        <Stack.Screen name="Home"    component={HomeScreen} />
         <Stack.Screen name="Results" component={ResultsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
@@ -198,15 +218,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe:               { flex:1, backgroundColor:'#fff' },
-  container:          { padding:16 },
-  label:              { fontSize:16, marginVertical:8 },
-  pickerWrapper:      { borderWidth:1, borderColor:'#ccc', borderRadius:4, marginBottom:16 },
-  input:              { borderWidth:1, borderColor:'#ccc', borderRadius:4, padding:8, marginBottom:16 },
-  buttonWrapper:      { marginVertical:16 },
-  center:             { flex:1, justifyContent:'center', alignItems:'center' },
-  error:              { color:'red', marginBottom:8 },
-  leaderboardContainer:{ padding:16 },
-  leaderboardTitle:   { fontSize:20, fontWeight:'700', marginBottom:12 },
-  leaderboardItem:    { fontSize:16, marginVertical:4 },
+  safe:                { flex:1, backgroundColor:'#fff' },
+  container:           { padding:16 },
+  label:               { fontSize:16, marginVertical:8 },
+  pickerWrapper:       { borderWidth:1, borderColor:'#ccc', borderRadius:4, marginBottom:16 },
+  input:               { borderWidth:1, borderColor:'#ccc', borderRadius:4, padding:8, marginBottom:16 },
+  buttonWrapper:       { marginVertical:16 },
+  center:              { flex:1, justifyContent:'center', alignItems:'center' },
+  error:               { color:'red', marginBottom:8 },
+  leaderboardContainer: { padding:16 },
+  leaderboardTitle:    { fontSize:20, fontWeight:'700', marginBottom:12 },
+  leaderboardItem:     { fontSize:16, marginVertical:4 },
 })
