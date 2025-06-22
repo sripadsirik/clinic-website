@@ -26,8 +26,18 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseDev":  "http://192.168.68.79:4000",     
-      "apiBaseProd": "https://clinic-website-api.onrender.com"       
+      "apiBaseDev": "http://192.168.68.79:4000",
+      "apiBaseProd": "https://clinic-website-api.onrender.com",
+      "eas": {
+        "projectId": "71c923cc-b4eb-4f89-96c9-9bae65a62b5a"
+      }
+    },
+    "owner": "ssiri5",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/71c923cc-b4eb-4f89-96c9-9bae65a62b5a"
     }
   }
 }

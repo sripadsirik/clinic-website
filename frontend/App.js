@@ -18,32 +18,17 @@ import { Picker } from '@react-native-picker/picker'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
-// ——— HOST DETECTION ———
-// Your prod API:
-const apiBaseProd = 'https://clinic-website-api.onrender.com'
+// const { apiBaseDev, apiBaseProd } = 
+//       Constants.manifest?.extra 
+//    || Constants.expoConfig?.extra 
+//    || { apiBaseDev: 'http://localhost:4000', apiBaseProd:'' };
 
-// Figure out a dev host that clients can reach:
-// • On web, use the page’s host
-// • On native, use Expo’s debuggerHost (or fallback to localhost)
-let devHost = 'localhost'
-if (__DEV__) {
-  if (Platform.OS === 'web') {
-    devHost = window.location.hostname || 'localhost'
-  } else {
-    // Constants.manifest is available in classic managed apps,
-    // Constants.expoConfig.hostUri in bare or with EAS.
-    const dbg = Constants.manifest?.debuggerHost
-             || Constants.expoConfig?.hostUri
-             || ''
-    const raw = dbg.split(':')[0]
-    if (raw && raw !== '0.0.0.0') devHost = raw
-  }
-}
+// // __DEV__ is true inside Expo Go / Metro
+// export const API_BASE = __DEV__
+//   ? apiBaseDev
+//   : apiBaseProd;
 
-export const API_BASE = __DEV__
-  ? `http://${devHost}:4000`
-  : apiBaseProd
-// ——————————————————————————————————————————————————
+export const API_BASE = 'https://clinic-website-api.onrender.com'
 
 function HomeScreen({ navigation }) {
   const [location,  setLocation]  = useState('Oak Lawn')
