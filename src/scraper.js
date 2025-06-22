@@ -35,7 +35,6 @@ async function loginAndClickSubmit(page) {
   await clickButtonByText(page, 'button', 'Sign In')
     .catch(() => clickButtonByText(page, 'button', 'Continue'));
   await page.waitForNavigation({ waitUntil: 'networkidle2' });
-  // finally hit “Submit”
   await page.waitForSelector('#uiBtnLogin', { visible: true });
   await Promise.all([
     page.click('#uiBtnLogin'),
@@ -71,7 +70,6 @@ async function setDate(page, date) {
 }
 
 async function scrapeVisitsForDate(page, location, date) {
-  // choose boxes & status-map per location
   let boxes, statusMap;
   if (location === 'Orland Park') {
     boxes = ['#box96','#box97','#box367'];
@@ -79,30 +77,26 @@ async function scrapeVisitsForDate(page, location, date) {
   } else if (location === 'Oak Lawn') {
     boxes = ['#box63','#box66','#box366'];
     statusMap = { box63:'No-Show/Resched', box66:'MD Exit', box366:'OD/Post-Op Exit' };
-  } else { 
-    // Albany Park, OakBrook, Buffalo Grove, Schaumburg share the same two-box pattern
+  } else {
     const mapping = {
       'Albany Park': ['#box358','#box352'],
       'Buffalo Grove':['#box387','#box388'],
       'OakBrook':     ['#box411','#box412'],
-      'Schaumburg':    ['#box439','#box440'],
+      'Schaumburg':   ['#box439','#box440'],
     };
     boxes = mapping[location] || [];
     statusMap = boxes.reduce((m, id) => {
-      // second box always "Exit", first always "No-Show/Resched"
       m[id.slice(1)] = id === boxes[0] ? 'No-Show/Resched' : 'Exit';
       return m;
     }, {});
   }
 
-  // wait for all box containers (they always exist, even if empty)
   await Promise.all(
     boxes.map(id =>
       page.waitForSelector(id, { visible: true, timeout: 15000 })
     )
   );
 
-  // now grab whatever <li> items are in them (zero or more)
   return await page.evaluate((boxes, statusMap, loc, dt) => {
     const out = [];
     boxes.forEach(id => {
@@ -120,8 +114,8 @@ async function scrapeVisitsForDate(page, location, date) {
           status:   statusMap[boxId] || null,
           time,
           patient,
-          doctor:   mDoc  ? mDoc[1].trim() : null,
-          type:     mTyp  ? mTyp[1].trim() : null,
+          doctor:   mDoc ? mDoc[1].trim() : null,
+          type:     mTyp ? mTyp[1].trim() : null,
         });
       });
     });
@@ -130,13 +124,11 @@ async function scrapeVisitsForDate(page, location, date) {
 }
 
 async function syncLocationsRange(locations, startDate, endDate) {
-  await mongoose.connect(process.env.MONGO_URI, { dbName: 'visits' });
+  // reuse the single mongoose connection from your server
   const db = mongoose.connection.db;
 
-  const browser = await puppeteer.launch({
-    headless: false, slowMo: 50, defaultViewport: null
-  });
-  const page = await browser.newPage();
+  const browser = await puppeteer.launch({ headless: false, slowMo: 50, defaultViewport: null });
+  const page    = await browser.newPage();
   await loginAndClickSubmit(page);
   await page.waitForSelector('#datepicker', { visible: true, timeout: 30000 });
 
@@ -148,14 +140,8 @@ async function syncLocationsRange(locations, startDate, endDate) {
     const from = new Date(startDate), to = new Date(endDate);
     for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
       const iso = d.toISOString().slice(0,10);
-      if (d.getUTCDay() === 0) {
-        console.log(`⏭ Skipping ${loc} on ${iso} (Sunday)`);
-        continue;
-      }
-      if (await coll.findOne({ date: iso })) {
-        console.log(`⏭ Skipping ${loc} on ${iso} (already scraped)`);
-        continue;
-      }
+      if (d.getUTCDay() === 0) continue; // skip Sundays
+      if (await coll.findOne({ date: iso })) continue; // already scraped
 
       console.log(`🔁 Scraping ${loc} on ${iso}`);
       await setDate(page, iso);
@@ -176,15 +162,12 @@ async function syncLocationsRange(locations, startDate, endDate) {
       fs.mkdirSync('logs_dump', { recursive: true });
       const csv = path.join('logs_dump', `${safeLoc}_${iso}.csv`);
       const header = 'status,time,patient,doctor,type\n';
-      const rows = visits.map(v =>
-        [v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(',')
-      ).join('\n');
+      const rows   = visits.map(v => [v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(',')).join('\n');
       fs.writeFileSync(csv, header + rows, 'utf8');
     }
   }
 
   await browser.close();
-  await mongoose.disconnect();
 }
 
 // backwards-compat
