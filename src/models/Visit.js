@@ -1,16 +1,15 @@
 // src/models/Visit.js
+// (no changes needed until we build out retrieval / leaderboard logic)
 const mongoose = require('mongoose');
 
 const VisitSchema = new mongoose.Schema({
-  location:    { type: String, required: true },
-  date:        { type: String, required: true },
-  status:      { type: String, default: null },  // e.g. "MD Exit", "OD/Post-Op Exit", "No-Show/Resched"
-  time:        { type: String, required: true }, // e.g. "9:05a"
-  patient:     { type: String, required: true }, // e.g. "Chavez, Fidel"
-
-  // newly scraped fields:
-  doctor:      { type: String, default: null },  // e.g. "MA"
-  type:        { type: String, default: null },  // e.g. "NEW PATIENT" or "FOLLOW UP"
+  location: { type: String, required: true },
+  date:     { type: String, required: true },
+  status:   { type: String, default: null },
+  time:     { type: String, required: true },
+  patient:  { type: String, required: true },
+  doctor:   { type: String, default: null },
+  type:     { type: String, default: null },
 }, {
   timestamps: true
 });

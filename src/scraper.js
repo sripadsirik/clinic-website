@@ -10,7 +10,7 @@ async function clickButtonByText(page, selector, text) {
   await page.evaluate(
     ({ selector, text }) => {
       const btn = Array.from(document.querySelectorAll(selector))
-        .find(el => el.innerText.trim().includes(text));
+        .find(el => el.innerText.trim() === text);
       if (!btn) throw new Error(`Button "${text}" not found`);
       btn.click();
     },
@@ -18,165 +18,185 @@ async function clickButtonByText(page, selector, text) {
   );
 }
 
-// simple delay helper
 function delay(ms) {
   return new Promise(res => setTimeout(res, ms));
 }
 
-async function syncVisits(location, date) {
-  console.log(`🔍 Starting scrape for ${location} on ${date}`);
-
-  // ── 1) MONGO ────────────────────────────────────────────────────────────────
-  // force using the "visits" database
-  await mongoose.connect(process.env.MONGO_URI, {
-    dbName: 'visits',
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-  const db = mongoose.connection.db;
-
-  // build a collection name like "Oak_Lawn_2025-06-18"
-  const safeLoc = location.replace(/\s+/g, '_');
-  const collName = `${safeLoc}_${date}`;
-  const coll = db.collection(collName);
-
-  // ── 2) BROWSER ──────────────────────────────────────────────────────────────
-  const browser = await puppeteer.launch({
-    headless: false,
-    slowMo: 50,
-    defaultViewport: null,
-  });
-  const page = await browser.newPage();
-
+async function loginAndClickSubmit(page) {
+  await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle2' });
   try {
-    // ─ LOGIN ────────────────────────────────────────────────────────────────
-    await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle2' });
-    try {
-      console.log('➡ clicking “I use an email address to login”');
-      await clickButtonByText(page, 'button', 'I use an email address to login');
-      await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    } catch {}
-    console.log('➡ filling email');
-    await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
-    await clickButtonByText(page, 'button', 'Continue');
+    await clickButtonByText(page, 'button', 'I use an email address to login');
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    console.log('➡ filling password');
-    await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
-    await clickButtonByText(page, 'button', 'Sign In').catch(() =>
-      clickButtonByText(page, 'button', 'Continue')
-    );
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // ─ SELECT PRACTICE ─────────────────────────────────────────────────────
-    console.log('🔎 waiting for practice dropdowns');
-    await page.waitForSelector('select[name="ui_DDLocation"]', { visible: true, timeout: 20000 });
-    console.log(`➡ selecting Location = ${location}`);
-    await page.evaluate((loc) => {
-      function selectByText(sel, txt) {
-        const S = document.querySelector(sel);
-        for (let o of S.options) {
-          if (o.text.trim() === txt) {
-            S.value = o.value;
-            S.dispatchEvent(new Event('change', { bubbles: true }));
-            return;
-          }
-        }
-        throw new Error(`Option "${txt}" not in ${sel}`);
-      }
-      selectByText('select[name="ui_DDLocation"]', loc);
-      selectByText('select[name="ui_DDDept"]', 'Comprehensive');
-    }, location);
-    await Promise.all([
-      page.click('#uiBtnLogin'),
-      page.waitForNavigation({ waitUntil: 'networkidle2' }),
-    ]);
-
-    // ─ SET DATE ──────────────────────────────────────────────────────────────
-    console.log(`➡ setting date picker to ${date}`);
-    await page.waitForSelector('#datepicker', { visible: true });
-    await page.evaluate(d => {
-      const [Y, M, D] = d.split('-').map(n => +n);
-      const dp = $('#datepicker').data('kendoDatePicker');
-      dp.value(new Date(Y, M - 1, D));
-      dp.trigger('change');
-    }, date);
-    // give grid a moment to refresh
-    await delay(2000);
-
-    // ─ WAIT FOR BOXES ───────────────────────────────────────────────────────
-    console.log('🔎 waiting for MD Exit / OD-Post-Op Exit / No-Show');
-    await Promise.all([
-      page.waitForSelector('#boxtitle66',  { visible: true, timeout: 15000 }),
-      page.waitForSelector('#boxtitle366',{ visible: true, timeout: 15000 }),
-      page.waitForSelector('#boxtitle63',  { visible: true, timeout: 15000 }),
-    ]);
-
-    // ─ SCRAPE ──────────────────────────────────────────────────────────────
-    const visits = await page.$$eval(
-      '#box66 li, #box366 li, #box63 li',
-      els => els.map(el => {
-        const raw     = el.innerText.trim();
-        const [time, ...rest] = raw.split(/\s+/);
-        const patient = rest.join(' ');
-
-        const title = el.getAttribute('title') || '';
-        const mDoc  = title.match(/Doctor:\s*([^\n]+)/);
-        const mTyp  = title.match(/Type:\s*([^\n]+)/);
-
-        const boxId     = el.closest('ul[data-role="droptarget"]').id;
-        const statusMap = {
-          box66:  'MD Exit',
-          box366: 'OD/Post-Op Exit',
-          box63:  'No-Show/Resched'
-        };
-        const status = statusMap[boxId] || null;
-
-        return {
-          location:  window._SCRAPE_LOCATION || null,
-          date:      window._SCRAPE_DATE   || null,
-          status,
-          time,
-          patient,
-          doctor: mDoc ? mDoc[1].trim() : null,
-          type:   mTyp ? mTyp[1].trim() : null,
-        };
-      })
-    );
-
-    // ─ UPSERT INTO location_date COLLECTION ────────────────────────────────
-    let count = 0;
-    for (const v of visits) {
-      await coll.updateOne(
-        { location: v.location, date: v.date, patient: v.patient, time: v.time },
-        { $set: v },
-        { upsert: true }
-      );
-      count++;
-    }
-    console.log(`✅ Upserted ${count} records into "${collName}"`);
-
-    // ─ OPTIONAL: dump CSV ──────────────────────────────────────────────────
-    fs.mkdirSync('logs', { recursive: true });
-    const csvPath = path.join('logs', `${safeLoc}_${date}.csv`);
-    const header  = 'status,time,patient,doctor,type\n';
-    const rows    = visits.map(v =>
-      [v.status, v.time, `"${v.patient}"`, v.doctor||'', v.type||''].join(',')
-    ).join('\n');
-    fs.writeFileSync(csvPath, header + rows, 'utf8');
-    console.log(`📝 Wrote CSV to ${csvPath}`);
-
-  } catch (err) {
-    fs.mkdirSync('logs', { recursive: true });
-    const dump = await page.content().catch(() => '<no page>');
-    const name = `error_${safeLoc}_${date}.html`;
-    fs.writeFileSync(path.join('logs', name), dump, 'utf8');
-    console.error(`❌ Scraper error: ${err.message}`);
-    console.error(`📝 HTML dump: logs/${name}`);
-  } finally {
-    await browser.close();
-    await mongoose.disconnect();
-  }
+  } catch {}
+  await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Continue');
+  await page.waitForNavigation({ waitUntil: 'networkidle2' });
+  await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Sign In')
+    .catch(() => clickButtonByText(page, 'button', 'Continue'));
+  await page.waitForNavigation({ waitUntil: 'networkidle2' });
+  // finally hit “Submit”
+  await page.waitForSelector('#uiBtnLogin', { visible: true });
+  await Promise.all([
+    page.click('#uiBtnLogin'),
+    page.waitForNavigation({ waitUntil: 'networkidle2' }),
+  ]);
 }
 
-module.exports = { syncVisits };
+async function changeLocation(page, newLoc) {
+  console.log(`🔀 Changing location → ${newLoc}`);
+  await page.waitForSelector('#ui_DDLocation', { timeout: 30000 });
+  await page.evaluate(loc => {
+    const dd = $('#ui_DDLocation').data('kendoDropDownList');
+    if (!dd) throw new Error('location dropdown not ready');
+    const opt = $('#ui_DDLocation option')
+      .filter((i,el) => $(el).text().trim() === loc);
+    if (!opt.length) throw new Error(`"${loc}" not found`);
+    dd.value(opt.val());
+    dd.trigger('change');
+    __doPostBack('ui$DDLocation','');
+  }, newLoc);
+  await delay(3000);
+}
+
+async function setDate(page, date) {
+  await page.waitForSelector('#datepicker', { visible: true });
+  await page.evaluate(d => {
+    const [Y,M,D] = d.split('-').map(n=>+n);
+    const dp = $('#datepicker').data('kendoDatePicker');
+    dp.value(new Date(Y,M-1,D));
+    dp.trigger('change');
+  }, date);
+  await delay(1500);
+}
+
+async function scrapeVisitsForDate(page, location, date) {
+  // choose boxes & status-map per location
+  let boxes, statusMap;
+  if (location === 'Orland Park') {
+    boxes = ['#box96','#box97','#box367'];
+    statusMap = { box96:'No-Show/Resced', box97:'MD Exit', box367:'OD Exit' };
+  } else if (location === 'Oak Lawn') {
+    boxes = ['#box63','#box66','#box366'];
+    statusMap = { box63:'No-Show/Resched', box66:'MD Exit', box366:'OD/Post-Op Exit' };
+  } else { 
+    // Albany Park, OakBrook, Buffalo Grove, Schaumburg share the same two-box pattern
+    const mapping = {
+      'Albany Park': ['#box358','#box352'],
+      'Buffalo Grove':['#box387','#box388'],
+      'OakBrook':     ['#box411','#box412'],
+      'Schaumburg':    ['#box439','#box440'],
+    };
+    boxes = mapping[location] || [];
+    statusMap = boxes.reduce((m, id) => {
+      // second box always "Exit", first always "No-Show/Resched"
+      m[id.slice(1)] = id === boxes[0] ? 'No-Show/Resched' : 'Exit';
+      return m;
+    }, {});
+  }
+
+  // wait for all box containers (they always exist, even if empty)
+  await Promise.all(
+    boxes.map(id =>
+      page.waitForSelector(id, { visible: true, timeout: 15000 })
+    )
+  );
+
+  // now grab whatever <li> items are in them (zero or more)
+  return await page.evaluate((boxes, statusMap, loc, dt) => {
+    const out = [];
+    boxes.forEach(id => {
+      document.querySelectorAll(`${id} li`).forEach(li => {
+        const raw     = li.innerText.trim();
+        const [time,...rest] = raw.split(/\s+/);
+        const patient = rest.join(' ');
+        const title   = li.getAttribute('title')||'';
+        const mDoc    = title.match(/Doctor:\s*([^\n]+)/);
+        const mTyp    = title.match(/Type:\s*([^\n]+)/);
+        const boxId   = li.closest('ul[data-role="droptarget"]').id;
+        out.push({
+          location: loc,
+          date:     dt,
+          status:   statusMap[boxId] || null,
+          time,
+          patient,
+          doctor:   mDoc  ? mDoc[1].trim() : null,
+          type:     mTyp  ? mTyp[1].trim() : null,
+        });
+      });
+    });
+    return out;
+  }, boxes, statusMap, location, date);
+}
+
+async function syncLocationsRange(locations, startDate, endDate) {
+  await mongoose.connect(process.env.MONGO_URI, { dbName: 'visits' });
+  const db = mongoose.connection.db;
+
+  const browser = await puppeteer.launch({
+    headless: false, slowMo: 50, defaultViewport: null
+  });
+  const page = await browser.newPage();
+  await loginAndClickSubmit(page);
+  await page.waitForSelector('#datepicker', { visible: true, timeout: 30000 });
+
+  for (const loc of locations) {
+    await changeLocation(page, loc);
+    const safeLoc = loc.replace(/\s+/g,'_');
+    const coll    = db.collection(safeLoc);
+
+    const from = new Date(startDate), to = new Date(endDate);
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
+      const iso = d.toISOString().slice(0,10);
+      if (d.getUTCDay() === 0) {
+        console.log(`⏭ Skipping ${loc} on ${iso} (Sunday)`);
+        continue;
+      }
+      if (await coll.findOne({ date: iso })) {
+        console.log(`⏭ Skipping ${loc} on ${iso} (already scraped)`);
+        continue;
+      }
+
+      console.log(`🔁 Scraping ${loc} on ${iso}`);
+      await setDate(page, iso);
+      const visits = await scrapeVisitsForDate(page, loc, iso);
+
+      let count = 0;
+      for (const v of visits) {
+        await coll.updateOne(
+          { location:v.location, date:v.date, patient:v.patient, time:v.time },
+          { $set: v },
+          { upsert: true }
+        );
+        count++;
+      }
+      console.log(`✅ Upserted ${count} rows into “${safeLoc}”`);
+
+      // optional CSV dump
+      fs.mkdirSync('logs_dump', { recursive: true });
+      const csv = path.join('logs_dump', `${safeLoc}_${iso}.csv`);
+      const header = 'status,time,patient,doctor,type\n';
+      const rows = visits.map(v =>
+        [v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(',')
+      ).join('\n');
+      fs.writeFileSync(csv, header + rows, 'utf8');
+    }
+  }
+
+  await browser.close();
+  await mongoose.disconnect();
+}
+
+// backwards-compat
+async function syncRange(location, startDate, endDate) {
+  return syncLocationsRange([location], startDate, endDate);
+}
+async function syncVisits(location, date) {
+  return syncLocationsRange([location], date, date);
+}
+
+module.exports = {
+  syncVisits,
+  syncRange,
+  syncLocationsRange,
+};
