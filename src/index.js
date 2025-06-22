@@ -10,9 +10,7 @@ const PORT = process.env.PORT || 4000
 
 // 1) Connect to MongoDB “visits” database
 mongoose
-  .connect(process.env.MONGO_URI, {
-    dbName: 'visits',
-  })
+  .connect(process.env.MONGO_URI, { dbName: 'visits' })
   .then(() => console.log('✔︎ MongoDB connected'))
   .catch(err => {
     console.error('✖︎ MongoDB connection error:', err.message)
@@ -23,32 +21,39 @@ mongoose
 app.use(cors())
 app.use(express.json())
 
-// 3) Root route so GET / works
+// 3) Health-check endpoint
 app.get('/', (req, res) => {
   res.send('🚀 visits-scraper API up; try GET /api/visits')
 })
 
-// 4) Visits endpoint with auto-scrape of missing dates
+// 4) /api/visits with auto-scrape of missing dates + date validation
 app.get('/api/visits', async (req, res) => {
+  // --- location(s) parsing ---
   let locations = req.query.locations
   const single  = req.query.location
-
   if (!locations) {
     if (single) locations = [single]
-    else return res.status(400).json({ error: 'location or locations[] required' })
+    else return res.status(400).json({ error:'location or locations[] required' })
   }
   if (!Array.isArray(locations)) locations = [locations]
 
-  // Determine date range
+  // --- date validation & range ---
+  const iso = /^\d{4}-\d{2}-\d{2}$/
   let from, to
   if (req.query.date) {
+    if (!iso.test(req.query.date)) {
+      return res.status(400).json({ error:'date must be YYYY-MM-DD' })
+    }
     from = to = req.query.date
   } else {
     const { startDate, endDate } = req.query
     if (!startDate || !endDate) {
-      return res
-        .status(400)
-        .json({ error: 'provide date=YYYY-MM-DD or startDate & endDate' })
+      return res.status(400)
+        .json({ error:'provide date=YYYY-MM-DD or startDate & endDate' })
+    }
+    if (!iso.test(startDate)||!iso.test(endDate)) {
+      return res.status(400)
+        .json({ error:'startDate & endDate must be YYYY-MM-DD' })
     }
     from = startDate
     to   = endDate
@@ -57,41 +62,36 @@ app.get('/api/visits', async (req, res) => {
   try {
     const db = mongoose.connection.db
 
-    // Build expected dates (skip Sundays)
-    const expectedDates = []
-    for (let d = new Date(from); d <= new Date(to); d.setDate(d.getDate() + 1)) {
-      if (d.getUTCDay() !== 0) {
-        expectedDates.push(d.toISOString().slice(0, 10))
-      }
+    // build list of all non-Sunday dates in range
+    const expected = []
+    for (let d=new Date(from); d<=new Date(to); d.setDate(d.getDate()+1)) {
+      if (d.getUTCDay()!==0) expected.push(d.toISOString().slice(0,10))
     }
 
-    // Check which locations need scraping
+    // determine which locations still need scraping
     const toSync = []
     for (const loc of locations) {
-      const collName = loc.replace(/\s+/g, '_')
-      const coll     = db.collection(collName)
-      const present  = await coll.distinct('date', {
-        date: { $gte: from, $lte: to }
+      const coll = db.collection(loc.replace(/\s+/g,'_'))
+      const present = await coll.distinct('date',{
+        date:{ $gte: from, $lte: to }
       })
-
-      const missing = expectedDates.filter(d => !present.includes(d))
+      const missing = expected.filter(d=>!present.includes(d))
       if (missing.length) toSync.push(loc)
     }
 
-    // Scrape only if gaps exist
+    // scrape only if there are gaps
     if (toSync.length) {
       console.log('🔄 scraping gaps for:', toSync)
       await syncLocationsRange(toSync, from, to)
     }
 
-    // Fetch and return all visits
+    // fetch & return all docs
     let all = []
     for (const loc of locations) {
-      const collName = loc.replace(/\s+/g, '_')
-      const coll     = db.collection(collName)
-      const docs     = await coll
-        .find({ date: { $gte: from, $lte: to } })
-        .sort({ date: 1, time: 1 })
+      const coll = db.collection(loc.replace(/\s+/g,'_'))
+      const docs = await coll
+        .find({ date:{ $gte: from, $lte: to } })
+        .sort({ date:1, time:1 })
         .toArray()
       all = all.concat(docs)
     }
