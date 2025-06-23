@@ -24,25 +24,36 @@ const delay = ms=>new Promise(r=>setTimeout(r,ms))
 
 // log in flow
 async function loginAndClickSubmit(page) {
-  await page.goto('https://login.nextech.com/', { waitUntil:'networkidle2' })
-  try {
-    await clickButtonByText(page,'button','I use an email address to login')
-    await page.waitForNavigation({ waitUntil:'networkidle2' })
-  } catch{}
-  await page.type('input[name="username"]',process.env.NEXTECH_USER,{delay:50})
-  await clickButtonByText(page,'button','Continue')
-  await page.waitForNavigation({ waitUntil:'networkidle2' })
-  await page.type('input[type="password"]',process.env.NEXTECH_PASS,{delay:50})
-  await clickButtonByText(page,'button','Sign In').catch(
-    ()=>clickButtonByText(page,'button','Continue')
-  )
-  await page.waitForNavigation({ waitUntil:'networkidle2' })
-  await page.waitForSelector('#uiBtnLogin',{visible:true})
+  await page.goto('https://login.nextech.com/', {
+    waitUntil: 'domcontentloaded',
+  });
+
+  // 1) (Optional) click “I use an email…” if present
+  await clickButtonByText(page, 'button', 'I use an email address to login')
+    .catch(() => {});
+
+  // 2) Enter username
+  await page.waitForSelector('input[name="username"]', { visible: true, timeout: 60000 });
+  await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Continue');
+
+  // 3) Enter password
+  await page.waitForSelector('input[type="password"]', { visible: true, timeout: 60000 });
+  await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Sign In')
+    .catch(() => clickButtonByText(page, 'button', 'Continue'));
+
+  // 4) **Don’t** await navigation here—some flows are single-page-app style
+  // instead, wait for the second page’s submit button:
+  await page.waitForSelector('input#uiBtnLogin', { visible: true, timeout: 60000 });
+
+  // 5) Click “Submit” and now await the real navigation into the EHR:
   await Promise.all([
-    page.click('#uiBtnLogin'),
-    page.waitForNavigation({waitUntil:'networkidle2'})
-  ])
+    page.click('input#uiBtnLogin'),
+    page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 })
+  ]);
 }
+
 
 // select a new clinic location
 async function changeLocation(page,newLoc) {
