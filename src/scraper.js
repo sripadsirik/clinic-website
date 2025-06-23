@@ -51,10 +51,9 @@ async function loginAndClickSubmit(page) {
   ].join(',');
 
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-  await Promise.all([
-    page.click(submitSel),
-    await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 120000 })
-  ]);
+  await page.click(submitSel);
+  await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 120000 }); 
+  console.log('🔑 Logged in and saw #ui_DDLocation – ready to scrape');
 }
 
 // select a new clinic location
