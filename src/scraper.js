@@ -45,11 +45,11 @@ async function loginAndClickSubmit(page) {
 
   // 4) **Don’t** await navigation here—some flows are single-page-app style
   // instead, wait for the second page’s submit button:
-  await page.waitForSelector('input#uiBtnLogin', { visible: true, timeout: 60000 });
+  await page.waitForSelector('#uiBtnLogin', { visible: true, timeout: 60000 });
 
   // 5) Click “Submit” and now await the real navigation into the EHR:
   await Promise.all([
-    page.click('input#uiBtnLogin'),
+    page.click('#uiBtnLogin'),
     page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 })
   ]);
 }
