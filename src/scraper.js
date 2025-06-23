@@ -60,6 +60,11 @@ async function loginAndClickSubmit(page) {
 
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
   await page.click(submitSel);
+
+  await Promise.all([
+    page.click(submitSel),
+    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
+  ]);
 }
 
 
