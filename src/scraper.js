@@ -59,7 +59,6 @@ async function loginAndClickSubmit(page) {
   ].join(',');
 
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-  await page.click(submitSel);
 
   await Promise.all([
     page.click(submitSel),
@@ -179,7 +178,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
   console.log('🔍 Chrome binary at:', puppeteer.executablePath());
   const browser = await puppeteer.launch({
     // “new” = Chrome’s native headless mode (no X server needed)
-    headless: true,
+    headless: false,
 
     // use the downloaded binary, not any system install
     executablePath: puppeteer.executablePath(),
