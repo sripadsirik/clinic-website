@@ -46,20 +46,20 @@ async function loginAndClickSubmit(page) {
   console.log('🔑 Logged in to Nextech');
     // after attempting sign-in:
   // await page.waitForTimeout(2000); 
-  await page.screenshot({ path: 'debug-login.png', fullPage: true });
+  // await page.screenshot({ path: 'debug-login.png', fullPage: true });
   // const html = await page.content();
   // require('fs').writeFileSync('debug-login.html', html);
 
 
-  await clickButtonByText(page, 'button', 'Submit');
-  // const submitSel = [
-  //   '#uiBtnLogin',
-  //   'input[type="submit"]',
-  //   'button[type="submit"]',
-  // ].join(',');
+  // await clickButtonByText(page, 'button', 'Submit');
+  const submitSel = [
+    '#uiBtnLogin',
+    'input[type="submit"]',
+    'button[type="submit"]',
+  ].join(',');
 
-  // await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-  // await page.click(submitSel);
+  await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
+  await page.click(submitSel);
 }
 
 
