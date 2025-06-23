@@ -163,7 +163,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
   const db      = mongoose.connection.db
   console.log('🔍 Chrome binary at:', puppeteer.executablePath());
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     executablePath: puppeteer.executablePath(),
     args: [
       '--no-sandbox',
