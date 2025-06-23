@@ -59,7 +59,7 @@ async function loginAndClickSubmit(page) {
 async function changeLocation(page,newLoc) {
   console.log('🔑 Logged in and saw #ui_DDLocation – ready to scrape');
   console.log(`🔀 Changing location → ${newLoc}`)
-  await page.waitForSelector('#ui_DDLocation',{timeout:30000})
+  await page.waitForSelector('#ui_DDLocation',{timeout:120000})
   await page.evaluate(loc=>{
     const dd = $('#ui_DDLocation').data('kendoDropDownList')
     if(!dd) throw new Error('location dropdown not ready')
