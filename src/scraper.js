@@ -53,7 +53,7 @@ async function loginAndClickSubmit(page) {
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
   await Promise.all([
     page.click(submitSel),
-    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
+    await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 120000 });
   ]);
 }
 
