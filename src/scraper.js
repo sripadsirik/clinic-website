@@ -204,8 +204,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
 
       fs.mkdirSync('logs_dump',{recursive:true})
       const csv    = path.join('logs_dump',`${safeLoc}_${iso}.csv`)
-      const header = 'status,time,patient,doctor,type
-'
+      const header = 'status,time,patient,doctor,type'
       const rows   = visits
         .map(v=>[v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(','))
         .join('\n')
