@@ -45,10 +45,10 @@ async function loginAndClickSubmit(page) {
 
   console.log('🔑 Logged in to Nextech');
     // after attempting sign-in:
-  await page.waitForTimeout(2000); 
+  // await page.waitForTimeout(2000); 
   await page.screenshot({ path: 'debug-login.png', fullPage: true });
-  const html = await page.content();
-  require('fs').writeFileSync('debug-login.html', html);
+  // const html = await page.content();
+  // require('fs').writeFileSync('debug-login.html', html);
 
 
   await clickButtonByText(page, 'button', 'Submit');
