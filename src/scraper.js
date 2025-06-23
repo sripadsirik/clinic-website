@@ -166,7 +166,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
   console.log('🔍 Chrome binary at:', puppeteer.executablePath());
   const browser = await puppeteer.launch({
     // “new” = Chrome’s native headless mode (no X server needed)
-    headless: 'new',
+    headless: false,
 
     // use the downloaded binary, not any system install
     executablePath: puppeteer.executablePath(),
