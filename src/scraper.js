@@ -152,10 +152,21 @@ async function scrapeVisitsForDate(page, location, date) {
 async function syncLocationsRange(locations, startDate, endDate) {
   // (assumes mongoose.connect already done)
   const db      = mongoose.connection.db
+  console.log('🔍 Chrome binary at:', puppeteer.executablePath());
   const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--no-sandbox','--disable-setuid-sandbox']
-  })
+    // “new” = Chrome’s native headless mode (no X server needed)
+    headless: 'new',
+
+    // use the downloaded binary, not any system install
+    executablePath: puppeteer.executablePath(),
+
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',    // avoid /dev/shm crashes
+      '--single-process',           // sometimes helps in container
+    ],
+  });
   const page    = await browser.newPage()
 
   await loginAndClickSubmit(page)
