@@ -43,15 +43,23 @@ async function loginAndClickSubmit(page) {
   await clickButtonByText(page, 'button', 'Sign In')
     .catch(() => clickButtonByText(page, 'button', 'Continue'));
 
-  // 4) **Don’t** await navigation here—some flows are single-page-app style
-  // instead, wait for the second page’s submit button:
-  await page.waitForSelector('#uiBtnLogin', { visible: true, timeout: 60000 });
+  console.log('🔑 Logged in to Nextech');
+    // after attempting sign-in:
+  await page.waitForTimeout(2000); 
+  await page.screenshot({ path: 'debug-login.png', fullPage: true });
+  const html = await page.content();
+  require('fs').writeFileSync('debug-login.html', html);
 
-  // 5) Click “Submit” and now await the real navigation into the EHR:
-  await Promise.all([
-    page.click('#uiBtnLogin'),
-    page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 })
-  ]);
+
+  await clickButtonByText(page, 'button', 'Submit');
+  // const submitSel = [
+  //   '#uiBtnLogin',
+  //   'input[type="submit"]',
+  //   'button[type="submit"]',
+  // ].join(',');
+
+  // await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
+  // await page.click(submitSel);
 }
 
 
