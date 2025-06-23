@@ -1,3 +1,4 @@
 .env
 logs_dump
 node_modules
+.cache

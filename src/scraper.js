@@ -174,10 +174,16 @@ async function syncLocationsRange(locations, startDate, endDate) {
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',    // avoid /dev/shm crashes
-      '--single-process',           // sometimes helps in container
+      // '--disable-dev-shm-usage',    // avoid /dev/shm crashes
+      // '--single-process',           // sometimes helps in container
     ],
   });
+  // const browser = await puppeteer.launch({
+  //   headless: false,                   // show the window
+  //   executablePath: puppeteer.executablePath(),
+  //   args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  // });
+
   const page    = await browser.newPage()
 
   await loginAndClickSubmit(page)
