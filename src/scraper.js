@@ -1,4 +1,3 @@
-// src/scraper.js
 require('dotenv').config()
 const fs        = require('fs')
 const path      = require('path')
@@ -44,14 +43,7 @@ async function loginAndClickSubmit(page) {
     .catch(() => clickButtonByText(page, 'button', 'Continue'));
 
   console.log('🔑 Logged in to Nextech');
-    // after attempting sign-in:
-  // await page.waitForTimeout(2000); 
-  // await page.screenshot({ path: 'debug-login.png', fullPage: true });
-  // const html = await page.content();
-  // require('fs').writeFileSync('debug-login.html', html);
 
-
-  // await clickButtonByText(page, 'button', 'Submit');
   const submitSel = [
     '#uiBtnLogin',
     'input[type="submit"]',
@@ -59,13 +51,11 @@ async function loginAndClickSubmit(page) {
   ].join(',');
 
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-
   await Promise.all([
     page.click(submitSel),
     page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
   ]);
 }
-
 
 // select a new clinic location
 async function changeLocation(page,newLoc) {
@@ -106,7 +96,6 @@ async function scrapeVisitsForDate(page, location, date) {
   let boxes, statusMap
 
   if (date < cutoff) {
-    // find the .k-block containing both "AM" & "PM"
     const ampmId = await page.evaluate(()=>{
       const block = Array.from(document.querySelectorAll('.k-block'))
         .find(div=>div.innerText.includes('AM')&&div.innerText.includes('PM'))
@@ -140,12 +129,10 @@ async function scrapeVisitsForDate(page, location, date) {
     },{})
   }
 
-  // wait for each list container
   await Promise.all(
     boxes.map(id=>page.waitForSelector(id,{visible:true,timeout:15000}))
   )
 
-  // extract every <li> inside
   return await page.evaluate((boxes,statusMap,loc,dt)=>{
     const out = []
     boxes.forEach(id=>{
@@ -173,28 +160,16 @@ async function scrapeVisitsForDate(page, location, date) {
 
 // scrape any missing days for each location
 async function syncLocationsRange(locations, startDate, endDate) {
-  // (assumes mongoose.connect already done)
   const db      = mongoose.connection.db
   console.log('🔍 Chrome binary at:', puppeteer.executablePath());
   const browser = await puppeteer.launch({
-    // “new” = Chrome’s native headless mode (no X server needed)
     headless: false,
-
-    // use the downloaded binary, not any system install
     executablePath: puppeteer.executablePath(),
-
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      // '--disable-dev-shm-usage',    // avoid /dev/shm crashes
-      // '--single-process',           // sometimes helps in container
     ],
   });
-  // const browser = await puppeteer.launch({
-  //   headless: false,                   // show the window
-  //   executablePath: puppeteer.executablePath(),
-  //   args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  // });
 
   const page    = await browser.newPage()
 
@@ -209,7 +184,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
     const from = new Date(startDate), to = new Date(endDate)
     for (let d=new Date(from); d<=to; d.setDate(d.getDate()+1)) {
       const iso = d.toISOString().slice(0,10)
-      if (d.getUTCDay()===0) continue      // skip Sundays
+      if (d.getUTCDay()===0) continue
       if (await coll.findOne({ date:iso })) continue
 
       console.log(`🔁 Scraping ${loc} on ${iso}`)
@@ -227,10 +202,10 @@ async function syncLocationsRange(locations, startDate, endDate) {
       }
       console.log(`✅ Upserted ${count} rows into “${safeLoc}”`)
 
-      // optional CSV dump
       fs.mkdirSync('logs_dump',{recursive:true})
       const csv    = path.join('logs_dump',`${safeLoc}_${iso}.csv`)
-      const header = 'status,time,patient,doctor,type\n'
+      const header = 'status,time,patient,doctor,type
+'
       const rows   = visits
         .map(v=>[v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(','))
         .join('\n')
@@ -241,7 +216,6 @@ async function syncLocationsRange(locations, startDate, endDate) {
   await browser.close()
 }
 
-// backwards-compat
 async function syncRange(location,startDate,endDate) {
   return syncLocationsRange([location],startDate,endDate)
 }
