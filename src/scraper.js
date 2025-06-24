@@ -30,6 +30,7 @@ async function loginAndClickSubmit(page) {
     waitUntil: 'domcontentloaded',
   });
 
+  console.log('🔑 Logging in to Nextech...');
   // Optional: click “I use an email…” if present
   await clickButtonByText(page, 'button', 'I use an email address to login').catch(() => {});
 
@@ -47,45 +48,35 @@ async function loginAndClickSubmit(page) {
 
   // Submit and wait for full load
   const submitSel = ['#uiBtnLogin', 'input[type="submit"]', 'button[type="submit"]'].join(',');
-  await Promise.all([
-    page.click(submitSel),
-    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
-  ]);
 
-  // Ensure location dropdown is present after load
-  await page.waitForFunction(
-    () => !!document.querySelector('#ui_DDLocation'),
-    { timeout: 120000 }
-  );
+  page.click(submitSel);
+  
+  page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 });
+
   console.log('🔑 Logged in to Nextech');
 }
 
 // select a new clinic location
+// select a new clinic location
 async function changeLocation(page, newLoc) {
   console.log(`🔀 Changing location → ${newLoc}`);
 
-  // Wait for Kendo DropDown initialization
-  await page.waitForFunction(
-    () => {
-      const el = document.querySelector('#ui_DDLocation');
-      return el && window.$ && $(el).data('kendoDropDownList');
-    },
-    { timeout: 120000 }
-  );
-
-  // Set the new location
+  // drive the Kendo dropdown & postback in one go
   await page.evaluate(loc => {
     const dd = $('#ui_DDLocation').data('kendoDropDownList');
-    const opt = $('#ui_DDLocation option').filter((i, el) => $(el).text().trim() === loc);
-    if (!opt.length) throw new Error(`"${loc}" not found in dropdown`);
+    if (!dd) throw new Error('location dropdown not ready');
+    const opt = $('#ui_DDLocation option')
+      .filter((i, el) => $(el).text().trim() === loc);
+    if (!opt.length) throw new Error(`"${loc}" not found`);
     dd.value(opt.val());
     dd.trigger('change');
-    __doPostBack('ui$DDLocation', '');
+    __doPostBack('ui$DDLocation','');
   }, newLoc);
 
-  // Allow page to re-render
+  // wait for the page to repaint
   await delay(12000);
 }
+
 
 // pick a date in the calendar
 async function setDate(page, date) {
