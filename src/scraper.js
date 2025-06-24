@@ -50,21 +50,12 @@ async function loginAndClickSubmit(page) {
   await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
   await page.click(submitSel);
 
-  console.debug('🔎 Waiting for post-login navigation (domcontentloaded)…');
-  try {
-    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 120000 });
-    console.log('▶ Navigation succeeded, new URL:', page.url());
-  } catch (err) {
-    console.error('✖ Navigation timeout! Current URL:', page.url());
-    const snapshot = await page.content();
-    console.error('✖ Page HTML snippet:', snapshot.slice(0, 500).replace(/\s+/g, ' '), '…');
-    throw err;
-  }
 }
 
 
 // change clinic location (no jQuery)
 async function changeLocation(page,newLoc) {
+  console.log('▶ Navigation succeeded, new URL:', page.url());
   console.log(`🔀 changeLocation → ${newLoc}`)
   await page.waitForSelector('#ui_DDLocation',{visible:true,timeout:60000})
   await page.waitForFunction('window.kendo !== undefined',{timeout:60000})
