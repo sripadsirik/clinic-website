@@ -19,61 +19,61 @@ async function clickButtonByText(page, selector, text) {
 }
 
 // small delay
-const delay = ms => new Promise(r => setTimeout(r, ms));
+tasync function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
 
 // log in flow
 async function loginAndClickSubmit(page) {
+  // Navigate to login page
   await page.goto('https://login.nextech.com/', {
     waitUntil: 'domcontentloaded',
   });
 
-  // 1) (Optional) click “I use an email…” if present
-  await clickButtonByText(page, 'button', 'I use an email address to login').catch(
-    () => {}
-  );
+  // Optional: click “I use an email…” if present
+  await clickButtonByText(page, 'button', 'I use an email address to login').catch(() => {});
 
-  // 2) Enter username
+  // Enter username
   await page.waitForSelector('input[name="username"]', { visible: true, timeout: 60000 });
   await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
   await clickButtonByText(page, 'button', 'Continue');
 
-  // 3) Enter password
+  // Enter password
   await page.waitForSelector('input[type="password"]', { visible: true, timeout: 60000 });
   await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
   await clickButtonByText(page, 'button', 'Sign In').catch(() =>
     clickButtonByText(page, 'button', 'Continue')
   );
 
-  // wait for navigation or dropdown appearance
-  await Promise.race([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-    page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 60000 }),
+  // Submit and wait for full load
+  const submitSel = ['#uiBtnLogin', 'input[type="submit"]', 'button[type="submit"]'].join(',');
+  await Promise.all([
+    page.click(submitSel),
+    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
   ]);
 
+  // Ensure location dropdown is present after load
+  await page.waitForFunction(
+    () => !!document.querySelector('#ui_DDLocation'),
+    { timeout: 120000 }
+  );
   console.log('🔑 Logged in to Nextech');
-
-  const submitSel = ['#uiBtnLogin', 'input[type="submit"]', 'button[type="submit"]'].join(',');
-  await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-  await page.click(submitSel);
 }
 
 // select a new clinic location
 async function changeLocation(page, newLoc) {
   console.log(`🔀 Changing location → ${newLoc}`);
 
-  // 1) Wait for the dropdown to hit the DOM
-  await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 60000 });
-
-  // 2) Wait for Kendo to initialize its DropDownList widget
+  // Wait for Kendo DropDown initialization
   await page.waitForFunction(
     () => {
       const el = document.querySelector('#ui_DDLocation');
-      return el && !!$(el).data('kendoDropDownList');
+      return el && window.$ && $(el).data('kendoDropDownList');
     },
-    { timeout: 60000 }
+    { timeout: 120000 }
   );
 
-  // 3) Now actually set the value
+  // Set the new location
   await page.evaluate(loc => {
     const dd = $('#ui_DDLocation').data('kendoDropDownList');
     const opt = $('#ui_DDLocation option').filter((i, el) => $(el).text().trim() === loc);
@@ -83,13 +83,16 @@ async function changeLocation(page, newLoc) {
     __doPostBack('ui$DDLocation', '');
   }, newLoc);
 
-  // 4) Give the page some time to re-render
+  // Allow page to re-render
   await delay(12000);
 }
 
 // pick a date in the calendar
 async function setDate(page, date) {
-  await page.waitForSelector('#datepicker', { visible: true, timeout: 120000 });
+  await page.waitForFunction(
+    () => !!$('#datepicker').data('kendoDatePicker'),
+    { timeout: 120000 }
+  );
   await page.evaluate(d => {
     const [Y, M, D] = d.split('-').map(n => +n);
     const dp = $('#datepicker').data('kendoDatePicker');
@@ -141,8 +144,10 @@ async function scrapeVisitsForDate(page, location, date) {
   }
 
   // wait for all boxes to render
-  await Promise.all(
-    boxes.map(id => page.waitForSelector(id, { visible: true, timeout: 120000 }))
+  await page.waitForFunction(
+    (ids) => ids.every(id => document.querySelector(id)),
+    { timeout: 120000 },
+    boxes
   );
 
   // scrape the lis
@@ -156,7 +161,7 @@ async function scrapeVisitsForDate(page, location, date) {
         const title = li.getAttribute('title') || '';
         const mDoc = title.match(/Doctor:\s*([^\n]+)/);
         const mTyp = title.match(/Type:\s*([^\n]+)/);
-        const boxId = li.closest('ul[data-role="droptarget').id;
+        const boxId = li.closest('ul[data-role="droptarget"]').id;
         out.push({
           location: loc,
           date: dt,
@@ -183,7 +188,6 @@ async function syncLocationsRange(locations, startDate, endDate) {
   });
 
   const page = await browser.newPage();
-
   await loginAndClickSubmit(page);
 
   for (const loc of locations) {
@@ -191,8 +195,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
     const safeLoc = loc.replace(/\s+/g, '_');
     const coll = db.collection(safeLoc);
 
-    const from = new Date(startDate),
-      to = new Date(endDate);
+    const from = new Date(startDate), to = new Date(endDate);
     for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
       if (d.getUTCDay() === 0) continue;
@@ -211,7 +214,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
         );
         count++;
       }
-      console.log(`✅ Upserted ${count} rows into “${safeLoc}”`);
+      console.log(`✅ Upserted ${count} rows into “${safeLoc}`);
 
       fs.mkdirSync('logs_dump', { recursive: true });
       const csvPath = path.join('logs_dump', `${safeLoc}_${iso}.csv`);
