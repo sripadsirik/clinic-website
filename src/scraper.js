@@ -58,8 +58,8 @@ async function changeLocation(page,newLoc) {
   console.log('▶ Navigation succeeded, new URL:', page.url());
   console.log(`🔀 changeLocation → ${newLoc}`)
   // await page.waitForSelector('#ui_DDLocation',{visible:true,timeout:60000})
-  await page.waitForFunction('window.kendo !== undefined',{timeout:60000})
-  console.log('⚙️ Kendo ready, evaluating location change')
+  // await page.waitForFunction('window.kendo !== undefined',{timeout:60000})
+  // console.log('⚙️ Kendo ready, evaluating location change')
   await page.evaluate(loc=>{
     const sel = document.querySelector('#ui_DDLocation')
     const dd  = kendo.widgetInstance(sel, kendo.ui.DropDownList)
