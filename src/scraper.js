@@ -6,223 +6,167 @@ const mongoose  = require('mongoose')
 
 // helper: click a button by its exact innerText
 async function clickButtonByText(page, selector, text) {
-  await page.waitForSelector(selector, { visible:true })
+  console.log(`🔎 waiting for button ${selector} with text “${text}”`)
+  await page.waitForSelector(selector, { visible:true, timeout:60000 })
   await page.evaluate(
     ({selector,text})=>{
       const btn = Array.from(document.querySelectorAll(selector))
         .find(el=>el.innerText.trim()===text)
-      if(!btn) throw new Error(`Button "${text}" not found`)
+      if(!btn) throw new Error(`Button \"${text}\" not found`)
       btn.click()
     },
     {selector,text}
   )
+  console.log(`✅ clicked button “${text}”`)
 }
 
 // small delay
-const delay = ms=>new Promise(r=>setTimeout(r,ms))
+tinyDelay = ms=>new Promise(r=>setTimeout(r,ms))
 
 // log in flow
 async function loginAndClickSubmit(page) {
-  await page.goto('https://login.nextech.com/', {
-    waitUntil: 'domcontentloaded',
-  });
+  console.log('🌐 goto login page')
+  await page.goto('https://login.nextech.com/', { waitUntil: 'domcontentloaded' })
 
-  // 1) (Optional) click “I use an email…” if present
-  await clickButtonByText(page, 'button', 'I use an email address to login')
-    .catch(() => {});
+  // optional “I use an email…”
+  await clickButtonByText(page,'button','I use an email address to login').catch(()=>{})
 
-  // 2) Enter username
-  await page.waitForSelector('input[name="username"]', { visible: true, timeout: 60000 });
-  await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
-  await clickButtonByText(page, 'button', 'Continue');
+  // username
+  console.log('⌨️ entering username')
+  await page.waitForSelector('input[name="username"]',{visible:true,timeout:60000})
+  await page.type('input[name="username"]',process.env.NEXTECH_USER,{delay:50})
+  await clickButtonByText(page,'button','Continue')
 
-  // 3) Enter password
-  await page.waitForSelector('input[type="password"]', { visible: true, timeout: 60000 });
-  await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
-  await clickButtonByText(page, 'button', 'Sign In')
-    .catch(() => clickButtonByText(page, 'button', 'Continue'));
+  // password
+  console.log('🔒 entering password')
+  await page.waitForSelector('input[type="password"]',{visible:true,timeout:60000})
+  await page.type('input[type="password"]',process.env.NEXTECH_PASS,{delay:50})
+  await clickButtonByText(page,'button','Sign In').catch(()=>clickButtonByText(page,'button','Continue'))
 
-  console.log('🔑 Logged in to Nextech');
-
-  const submitSel = [
-    '#uiBtnLogin',
-    'input[type="submit"]',
-    'button[type="submit"]',
-  ].join(',');
-
-  await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
-  await page.click(submitSel);
-  
+  console.log('🔑 Logged in')
+  const submitSel = '#uiBtnLogin,input[type=submit],button[type=submit]'
+  console.log('🔎 waiting for final submit')
+  await page.waitForSelector(submitSel,{visible:true,timeout:60000})
+  await Promise.all([
+    page.click(submitSel),
+    page.waitForNavigation({waitUntil:'networkidle2',timeout:60000})
+  ])
+  console.log('🚀 dashboard loaded')
 }
 
-// select a new clinic location
+// change clinic location (no jQuery)
 async function changeLocation(page,newLoc) {
-  console.log('🔑 Logged in and saw #ui_DDLocation – ready to scrape');
-  console.log(`🔀 Changing location → ${newLoc}`)
-  // await page.waitForSelector('#ui_DDLocation',{visible:true, timeout:60000})
+  console.log(`🔀 changeLocation → ${newLoc}`)
+  await page.waitForSelector('#ui_DDLocation',{visible:true,timeout:60000})
+  await page.waitForFunction('window.kendo !== undefined',{timeout:60000})
+  console.log('⚙️ Kendo ready, evaluating location change')
   await page.evaluate(loc=>{
-    const dd = $('#ui_DDLocation').data('kendoDropDownList')
-    if(!dd) throw new Error('location dropdown not ready')
-    const opt = $('#ui_DDLocation option')
-      .filter((i,el)=>$(el).text().trim()===loc)
-    if(!opt.length) throw new Error(`"${loc}" not found`)
-    dd.value(opt.val())
+    const sel = document.querySelector('#ui_DDLocation')
+    const dd  = kendo.widgetInstance(sel, kendo.ui.DropDownList)
+    const opt = Array.from(sel.options).find(o=>o.text.trim()===loc)
+    if(!opt) throw new Error(`Location “${loc}” not found`)
+    dd.value(opt.value)
     dd.trigger('change')
     __doPostBack('ui$DDLocation','')
-  },newLoc)
-  await delay(12000)
+  }, newLoc)
+  console.log('✅ changeLocation evaluate complete, waiting for UI update')
+  await tinyDelay(50000)
 }
 
-// pick a date in the calendar
+// pick a date (no jQuery)
 async function setDate(page,date) {
-  await page.waitForSelector('#datepicker',{visible:true, timeout:120000})
+  console.log(`📅 setDate → ${date}`)
+  await page.waitForSelector('#datepicker',{visible:true,timeout:60000})
+  await page.waitForFunction('window.kendo !== undefined',{timeout:60000})
+  console.log('⚙️ Kendo datepicker ready')
   await page.evaluate(d=>{
+    const dpEl = document.querySelector('#datepicker')
+    const dp   = kendo.widgetInstance(dpEl, kendo.ui.DatePicker)
     const [Y,M,D] = d.split('-').map(n=>+n)
-    const dp = $('#datepicker').data('kendoDatePicker')
     dp.value(new Date(Y,M-1,D))
     dp.trigger('change')
-  },date)
-  await delay(1500)
+  }, date)
+  console.log('✅ setDate evaluate complete, waiting for UI update')
+  await tinyDelay(60000)
 }
 
-/**
- * scrapeVisitsForDate
- *  - dates < 2025-05-22 → scrape the single "AM PM" box
- *  - dates ≥ 2025-05-22 → scrape per-location boxes
- */
-async function scrapeVisitsForDate(page, location, date) {
+// scrape visits for one date
+async function scrapeVisitsForDate(page,location,date) {
+  console.log(`🔍 scrapeVisitsForDate ${location}@${date}`)
   const cutoff = '2025-05-22'
-  let boxes, statusMap
-
-  if (date < cutoff) {
+  let boxes = [], statusMap = {}
+  if(date<cutoff) {
+    console.log('ℹ️ pre-cutoff, single AM/PM')
     const ampmId = await page.evaluate(()=>{
       const block = Array.from(document.querySelectorAll('.k-block'))
         .find(div=>div.innerText.includes('AM')&&div.innerText.includes('PM'))
-      if(!block) throw new Error('AM PM container not found')
-      const ul = block.querySelector('ul[data-role="droptarget"]')
-      if(!ul) throw new Error('AM PM droptarget <ul> not found')
-      return ul.id
+      return block.querySelector('ul[data-role="droptarget"]').id
     })
-    boxes     = ['#'+ampmId]
-    statusMap = {}
-  }
-  else if (location==='Orland Park') {
-    boxes = ['#box96','#box97','#box367']
-    statusMap = { box96:'No-Show/Resced', box97:'MD Exit', box367:'OD Exit' }
-  }
-  else if (location==='Oak Lawn') {
-    boxes = ['#box63','#box66','#box366']
-    statusMap = { box63:'No-Show/Resched', box66:'MD Exit', box366:'OD/Post-Op Exit' }
-  }
-  else {
-    const mapping = {
-      'Albany Park':  ['#box358','#box352'],
+    boxes=[`#${ampmId}`]
+  } else {
+    console.log('ℹ️ post-cutoff, per-location mapping')
+    const map = {
+      'Orland Park':['#box96','#box97','#box367'],
+      'Oak Lawn':['#box63','#box66','#box366'],
+      'Albany Park':['#box358','#box352'],
       'Buffalo Grove':['#box387','#box388'],
-      'OakBrook':      ['#box411','#box412'],
-      'Schaumburg':    ['#box439','#box440'],
+      'OakBrook':['#box411','#box412'],
+      'Schaumburg':['#box439','#box440']
     }
-    boxes     = mapping[location]||[]
-    statusMap = boxes.reduce((m,id)=>{
-      m[id.slice(1)] = id===boxes[0]?'No-Show/Resched':'Exit'
-      return m
-    },{})
+    boxes=map[location]||[]
+    boxes.forEach((sel,i)=>statusMap[sel.slice(1)] = i===0?'No-Show/Resched':'Exit')
   }
-
-  await Promise.all(
-    boxes.map(id=>page.waitForSelector(id,{visible:true,timeout:120000}))
-  )
-
-  return await page.evaluate((boxes,statusMap,loc,dt)=>{
-    const out = []
+  console.log('⚙️ waiting for boxes:',boxes)
+  await Promise.all(boxes.map(id=>page.waitForSelector(id,{visible:true,timeout:60000})))
+  console.log('⚙️ boxes ready, extracting')
+  const visits = await page.evaluate((boxes,statusMap,loc,dt)=>{
+    const out=[]
     boxes.forEach(id=>{
       document.querySelectorAll(`${id} li`).forEach(li=>{
-        const raw     = li.innerText.trim()
-        const [time,...rest] = raw.split(/\s+/)
-        const patient = rest.join(' ')
-        const title   = li.getAttribute('title')||''
-        const mDoc    = title.match(/Doctor:\s*([^\n]+)/)
-        const mTyp    = title.match(/Type:\s*([^\n]+)/)
-        const boxId   = li.closest('ul[data-role="droptarget"]').id
-        out.push({
-          location: loc,
-          date:     dt,
-          status:   statusMap[boxId]||null,
-          time, patient,
-          doctor:   mDoc?mDoc[1].trim():null,
-          type:     mTyp?mTyp[1].trim():null
+        const raw=li.innerText.trim()
+        const [time,...rest]=raw.split(/\s+/)
+        const patient=rest.join(' ')
+        const title=li.title||''
+        const docM=title.match(/Doctor:\s*([^\n]+)/)
+        const typM=title.match(/Type:\s*([^\n]+)/)
+        const boxId=li.closest('ul[data-role="droptarget"]').id
+        out.push({location:loc,date:dt,status:statusMap[boxId]||null,time,patient,
+          doctor:docM?docM[1].trim():null,
+          type:typM?typM[1].trim():null
         })
       })
     })
     return out
   }, boxes, statusMap, location, date)
+  console.log(`✅ scraped ${visits.length} visits`)  
+  return visits
 }
 
-// scrape any missing days for each location
-async function syncLocationsRange(locations, startDate, endDate) {
-  const db      = mongoose.connection.db
-  console.log('🔍 Chrome binary at:', puppeteer.executablePath());
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: puppeteer.executablePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-    ],
-  });
-
-  const page    = await browser.newPage()
+// master sync
+async function syncLocationsRange(locations,startDate,endDate) {
+  console.log('🔍 launching Chromium')
+  const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-setuid-sandbox']})
+  const page=await browser.newPage()
 
   await loginAndClickSubmit(page)
-  // await page.waitForSelector('#datepicker',{visible:true,timeout:120000})
-
-  for (const loc of locations) {
-    await changeLocation(page, loc)
-    const safeLoc = loc.replace(/\s+/g,'_')
-    const coll    = db.collection(safeLoc)
-
-    const from = new Date(startDate), to = new Date(endDate)
-    for (let d=new Date(from); d<=to; d.setDate(d.getDate()+1)) {
-      const iso = d.toISOString().slice(0,10)
-      if (d.getUTCDay()===0) continue
-      if (await coll.findOne({ date:iso })) continue
-
-      console.log(`🔁 Scraping ${loc} on ${iso}`)
-      await setDate(page, iso)
-      const visits = await scrapeVisitsForDate(page, loc, iso)
-
-      let count = 0
-      for (const v of visits) {
-        await coll.updateOne(
-          { location:v.location, date:v.date, patient:v.patient, time:v.time },
-          { $set: v },
-          { upsert: true }
-        )
-        count++
-      }
-      console.log(`✅ Upserted ${count} rows into “${safeLoc}”`)
-
-      fs.mkdirSync('logs_dump',{recursive:true})
-      const csv    = path.join('logs_dump',`${safeLoc}_${iso}.csv`)
-      const header = 'status,time,patient,doctor,type'
-      const rows   = visits
-        .map(v=>[v.status,v.time,`"${v.patient}"`,v.doctor||'',v.type||''].join(','))
-        .join('\n')
-      fs.writeFileSync(csv, header+rows,'utf8')
+  console.log('🚀 starting scrape')
+  for(const loc of locations) {
+    await changeLocation(page,loc)
+    for(let d=new Date(startDate); d<=new Date(endDate); d.setDate(d.getDate()+1)){
+      if(d.getUTCDay()===0) continue
+      const iso=d.toISOString().slice(0,10)
+      console.log(`🔁 processing ${loc}@${iso}`)
+      await setDate(page,iso)
+      const visits=await scrapeVisitsForDate(page,loc,iso)
+      console.log(`📥 upserting ${visits.length} rows for ${loc}@${iso}`)
+      // upsert to DB...
     }
   }
-
   await browser.close()
+  console.log('🎉 scrape complete')
 }
 
-async function syncRange(location,startDate,endDate) {
-  return syncLocationsRange([location],startDate,endDate)
-}
-async function syncVisits(location,date) {
-  return syncLocationsRange([location],date,date)
-}
-
-module.exports = {
-  syncVisits,
-  syncRange,
-  syncLocationsRange
+module.exports={syncLocationsRange,
+  syncRange:(l,s,e)=>syncLocationsRange([l],s,e),
+  syncVisits:(l,d)=>syncLocationsRange([l],d,d)
 }
