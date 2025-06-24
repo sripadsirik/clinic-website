@@ -19,7 +19,7 @@ async function clickButtonByText(page, selector, text) {
 }
 
 // small delay
-tasync function delay(ms) {
+async function delay(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
