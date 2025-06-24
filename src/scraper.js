@@ -25,34 +25,43 @@ tinyDelay = ms=>new Promise(r=>setTimeout(r,ms))
 
 // log in flow
 async function loginAndClickSubmit(page) {
-  console.log('🌐 goto login page')
-  await page.goto('https://login.nextech.com/', { waitUntil: 'domcontentloaded' })
+  console.log('🔍 Navigating to login page…');
+  await page.goto('https://login.nextech.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-  // optional “I use an email…”
-  await clickButtonByText(page,'button','I use an email address to login').catch(()=>{})
+  console.debug('🔑 Attempting optional email-login button');
+  await clickButtonByText(page, 'button', 'I use an email address to login').catch(() => {
+    console.debug('   (email button not present — skipping)');
+  });
 
-  // username
-  console.log('⌨️ entering username')
-  await page.waitForSelector('input[name="username"]',{visible:true,timeout:60000})
-  await page.type('input[name="username"]',process.env.NEXTECH_USER,{delay:50})
-  await clickButtonByText(page,'button','Continue')
+  console.debug('✉️  Entering username');
+  await page.waitForSelector('input[name="username"]', { visible: true, timeout: 60000 });
+  await page.type('input[name="username"]', process.env.NEXTECH_USER, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Continue');
 
-  // password
-  console.log('🔒 entering password')
-  await page.waitForSelector('input[type="password"]',{visible:true,timeout:60000})
-  await page.type('input[type="password"]',process.env.NEXTECH_PASS,{delay:50})
-  await clickButtonByText(page,'button','Sign In').catch(()=>clickButtonByText(page,'button','Continue'))
+  console.debug('🔐 Entering password');
+  await page.waitForSelector('input[type="password"]', { visible: true, timeout: 60000 });
+  await page.type('input[type="password"]', process.env.NEXTECH_PASS, { delay: 50 });
+  await clickButtonByText(page, 'button', 'Sign In')
+    .catch(() => clickButtonByText(page, 'button', 'Continue'));
 
-  console.log('🔑 Logged in')
-  const submitSel = '#uiBtnLogin,input[type=submit],button[type=submit]'
-  console.log('🔎 waiting for final submit')
-  await page.waitForSelector(submitSel,{visible:true,timeout:60000})
-  await Promise.all([
-    page.click(submitSel),
-    page.waitForNavigation({waitUntil:'networkidle2',timeout:60000})
-  ])
-  console.log('🚀 dashboard loaded')
+  console.log('🔑 Logged in to Nextech – clicking final submit');
+
+  const submitSel = '#uiBtnLogin,input[type="submit"],button[type="submit"]';
+  await page.waitForSelector(submitSel, { visible: true, timeout: 60000 });
+  await page.click(submitSel);
+
+  console.debug('🔎 Waiting for post-login navigation (domcontentloaded)…');
+  try {
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 120000 });
+    console.log('▶ Navigation succeeded, new URL:', page.url());
+  } catch (err) {
+    console.error('✖ Navigation timeout! Current URL:', page.url());
+    const snapshot = await page.content();
+    console.error('✖ Page HTML snippet:', snapshot.slice(0, 500).replace(/\s+/g, ' '), '…');
+    throw err;
+  }
 }
+
 
 // change clinic location (no jQuery)
 async function changeLocation(page,newLoc) {
