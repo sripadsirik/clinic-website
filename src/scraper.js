@@ -129,7 +129,7 @@ async function scrapeVisitsForDate(page, location, date) {
   }
 
   await Promise.all(
-    boxes.map(id=>page.waitForSelector(id,{visible:true,timeout:15000}))
+    boxes.map(id=>page.waitForSelector(id,{visible:true,timeout:120000}))
   )
 
   return await page.evaluate((boxes,statusMap,loc,dt)=>{
@@ -173,7 +173,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
   const page    = await browser.newPage()
 
   await loginAndClickSubmit(page)
-  await page.waitForSelector('#datepicker',{visible:true,timeout:12000})
+  // await page.waitForSelector('#datepicker',{visible:true,timeout:120000})
 
   for (const loc of locations) {
     await changeLocation(page, loc)
