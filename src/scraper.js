@@ -59,7 +59,7 @@ async function loginAndClickSubmit(page) {
 async function changeLocation(page,newLoc) {
   console.log('🔑 Logged in and saw #ui_DDLocation – ready to scrape');
   console.log(`🔀 Changing location → ${newLoc}`)
-  await page.waitForSelector('#ui_DDLocation',{visible:true, timeout:120000})
+  await page.waitForSelector('#ui_DDLocation',{visible:true, timeout:60000})
   await page.evaluate(loc=>{
     const dd = $('#ui_DDLocation').data('kendoDropDownList')
     if(!dd) throw new Error('location dropdown not ready')
@@ -70,7 +70,7 @@ async function changeLocation(page,newLoc) {
     dd.trigger('change')
     __doPostBack('ui$DDLocation','')
   },newLoc)
-  await delay(3000)
+  await delay(12000)
 }
 
 // pick a date in the calendar
@@ -173,7 +173,7 @@ async function syncLocationsRange(locations, startDate, endDate) {
   const page    = await browser.newPage()
 
   await loginAndClickSubmit(page)
-  await page.waitForSelector('#datepicker',{visible:true,timeout:30000})
+  await page.waitForSelector('#datepicker',{visible:true,timeout:12000})
 
   for (const loc of locations) {
     await changeLocation(page, loc)
