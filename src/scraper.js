@@ -21,10 +21,8 @@ async function startBrowser() {
   console.log('🟢 Opening browser...');
   const browser = await puppeteer.launch({
     headless: true,
-    // point at the Chromium that Puppeteer just fetched
-    executablePath: puppeteer.executablePath(),
-    // pipe (instead of websocket) is more reliable in containers
-    pipe: true,
+    executablePath: puppeteer.executablePath(),  // <-- use the shipped Chromium
+    pipe: true,                                   // <-- use pipe transport
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -32,9 +30,8 @@ async function startBrowser() {
       '--use-gl=egl'
     ],
     ignoreHTTPSErrors: true,
-    // give it more time to register all scripts
-    timeout: 60000,
-    protocolTimeout: 60000,
+    timeout: 240000,         // <-- give launch up to 4min
+    protocolTimeout: 240000, // <-- give CDP calls up to 4min
   });
 
   const page = await browser.newPage();
@@ -44,6 +41,7 @@ async function startBrowser() {
   );
   return { browser, page };
 }
+
 
 // helper: click a button by its exact innerText
 async function clickButtonByText(page, selector, text) {
