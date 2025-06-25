@@ -18,29 +18,31 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
  * — set a real-world Chrome user agent
  */
 async function startBrowser() {
-  try {
-    console.log('🟢 Opening browser...');
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--use-gl=egl'
-      ],
-      ignoreDefaultArgs: ['--disable-extensions'],
-      ignoreHTTPSErrors: true
-    });
+  console.log('🟢 Opening browser...');
+  const browser = await puppeteer.launch({
+    headless: true,
+    // point at the Chromium that Puppeteer just fetched
+    executablePath: puppeteer.executablePath(),
+    // pipe (instead of websocket) is more reliable in containers
+    pipe: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--use-gl=egl'
+    ],
+    ignoreHTTPSErrors: true,
+    // give it more time to register all scripts
+    timeout: 60000,
+    protocolTimeout: 60000,
+  });
 
-    const page = await browser.newPage();
-    await page.setUserAgent(
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
-      '(KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'
-    );
-    return { browser, page };
-  } catch (err) {
-    console.error('🔴 Could not launch browser:', err);
-    throw err;
-  }
+  const page = await browser.newPage();
+  await page.setUserAgent(
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'
+  );
+  return { browser, page };
 }
 
 // helper: click a button by its exact innerText
