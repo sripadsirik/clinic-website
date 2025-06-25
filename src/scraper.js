@@ -31,7 +31,7 @@ async function startBrowser() {
     ],
     ignoreHTTPSErrors: true,
     timeout: 240000,         // <-- give launch up to 4min
-    protocolTimeout: 240000, // <-- give CDP calls up to 4min
+    protocolTimeout: 480000, // <-- give CDP calls up to 4min
   });
 
   const page = await browser.newPage();
