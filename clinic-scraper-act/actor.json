@@ -1,0 +1,15 @@
+{
+  "actorSpecification": 2,
+  "name":              "clinic-scraper-act",
+  "version":           "0.0",
+  "buildTag":          "latest",
+  "inputSchema": {
+    "type":       "object",
+    "properties": {
+      "location":  { "type": "string" },
+      "startDate": { "type": "string", "format": "date" },
+      "endDate":   { "type": "string", "format": "date" }
+    },
+    "required": ["location","startDate","endDate"]
+  }
+}

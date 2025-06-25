@@ -6,7 +6,6 @@
     "start": "node src/index.js",
     "postinstall": "npx puppeteer browsers install chrome",
     "test": "echo \"Error: no test specified\" && exit 1"
-    
   },
   "keywords": [],
   "author": "",
@@ -18,6 +17,6 @@
     "express": "^5.1.0",
     "mongodb": "^6.17.0",
     "mongoose": "^8.16.0",
-    "puppeteer": "^24.10.1"
+    "puppeteer": "^24.10.2"
   }
 }
