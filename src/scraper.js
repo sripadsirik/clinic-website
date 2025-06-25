@@ -36,12 +36,20 @@ async function loginAndClickSubmit(page) {
   await clickButtonByText(page,'button','Sign In').catch(
     ()=>clickButtonByText(page,'button','Continue')
   )
-  await page.waitForNavigation({ waitUntil:'networkidle2' })
-  // await page.waitForSelector('#uiBtnLogin',{visible:true})
-  // await Promise.all([
-    page.click('#uiBtnLogin'),
-    page.waitForNavigation({waitUntil:'networkidle2'})
-  // ])
+  await page.waitForNavigation({ waitUntil: 'networkidle2' })
+  try {
+    // legacy step: some tenants still show a “uiBtnLogin” button
+    await page.waitForSelector('#uiBtnLogin', { visible: true, timeout: 60000 })
+    await Promise.all([
+      page.click('#uiBtnLogin'),
+      page.waitForNavigation({ waitUntil: 'networkidle2' })
+    ])
+  } catch {
+    // if it never shows, assume we’re already on the main dashboard
+    console.log('ℹ️  Skipping #uiBtnLogin; proceeding to dashboard')
+  }
+  // final sanity check: wait for the location dropdown
+  await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 60000 })
   console.log('🔐 Logged in to Nextech')
 }
 
