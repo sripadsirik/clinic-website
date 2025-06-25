@@ -37,20 +37,22 @@ async function loginAndClickSubmit(page) {
     ()=>clickButtonByText(page,'button','Continue')
   )
   await page.waitForNavigation({ waitUntil: 'networkidle2' })
-  try {
-    // legacy step: some tenants still show a “uiBtnLogin” button
-    await page.waitForSelector('#uiBtnLogin', { visible: true, timeout: 60000 })
-    await Promise.all([
-      page.click('#uiBtnLogin'),
-      page.waitForNavigation({ waitUntil: 'networkidle2' })
-    ])
-  } catch {
-    // if it never shows, assume we’re already on the main dashboard
-    console.log('ℹ️  Skipping #uiBtnLogin; proceeding to dashboard')
-  }
-  // final sanity check: wait for the location dropdown
-  await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 60000 })
   console.log('🔐 Logged in to Nextech')
+  try {
+    // wait for the Location dropdown (or any selector you know is on that form)
+    await page.waitForSelector('#ui_DDLocation', { visible: true, timeout: 30000 })
+    console.log('ℹ️ EHR landing detected, clicking Submit')
+
+    // click the “Submit” button by value
+    await Promise.all([
+      page.click('input[type="submit"][value="Submit"]'),
+      page.waitForNavigation({ waitUntil: 'networkidle2' }),
+    ])
+
+    console.log('✅ EHR form submitted, moving on to datepicker')
+  } catch (e) {
+    console.log('⚠️  Could not find or click EHR Submit button, maybe already past it')
+  }
 }
 
 // select a new clinic location
@@ -162,9 +164,16 @@ async function syncLocationsRange(locations, startDate, endDate) {
   // (assumes mongoose.connect already done)
   const db      = mongoose.connection.db
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox','--disable-setuid-sandbox']
+    headless: false,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--remote-debugging-address=0.0.0.0',
+      '--remote-debugging-port=9222',
+    ],
   })
+
   const page    = await browser.newPage()
 
   await loginAndClickSubmit(page)

@@ -28,7 +28,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 //   ? apiBaseDev
 //   : apiBaseProd;
 
-export const API_BASE = 'https://clinic-website-api.onrender.com'
+export const API_BASE = 'https://clinic-scraper.fly.dev'
 
 function HomeScreen({ navigation }) {
   const [location,  setLocation]  = useState('Oak Lawn')
