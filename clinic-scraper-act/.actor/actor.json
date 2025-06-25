@@ -1,0 +1,20 @@
+{
+	"actorSpecification": 1,
+	"name": "clinic-scraper-act",
+	"version": "0.0",
+	"buildTag": "latest",
+	"environmentVariables": {
+		"MONGO_URI":"mongodb+srv://sripadsirik:SriLikesMcLarenCars1@cluster0.8fxzqo5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+		"NEXTECH_USER":"sripadsirik@gmail.com",
+		"NEXTECH_PASS":"SriLikesMcLarenCars1$$$"
+	},
+	"inputSchema": {
+    "type": "object",
+    "properties": {
+      "location":  { "type": "string" },
+      "startDate": { "type": "string", "format": "date" },
+      "endDate":   { "type": "string", "format": "date" }
+    },
+    "required": ["location","startDate","endDate"]
+  }
+}
