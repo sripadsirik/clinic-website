@@ -37,11 +37,12 @@ async function loginAndClickSubmit(page) {
     ()=>clickButtonByText(page,'button','Continue')
   )
   await page.waitForNavigation({ waitUntil:'networkidle2' })
-  await page.waitForSelector('#uiBtnLogin',{visible:true})
-  await Promise.all([
+  // await page.waitForSelector('#uiBtnLogin',{visible:true})
+  // await Promise.all([
     page.click('#uiBtnLogin'),
     page.waitForNavigation({waitUntil:'networkidle2'})
-  ])
+  // ])
+  console.log('🔐 Logged in to Nextech')
 }
 
 // select a new clinic location
