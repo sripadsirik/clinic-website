@@ -1,32 +1,23 @@
-app = "clinic-scraper"
-primary_region = "ord"
+# fly.toml app configuration file generated for clinic-scraper on 2025-06-25T13:14:24-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'clinic-scraper'
+primary_region = 'ord'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [http_service]
-  internal_port       = 4000
-  force_https         = true
-  auto_stop_machines  = "stop"
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running= 0
-  processes           = ["app"]
-
-  # default HTTP/HTTPS
-  [[http_service.ports]]
-    port     = 80
-    handlers = ["http"]
-
-  [[http_service.ports]]
-    port     = 443
-    handlers = ["tls","http"]
-
-  # expose Chrome remote-debugging port
-  [[http_service.ports]]
-    port     = 9222
-    handlers = ["tcp"]
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
-  memory   = "1gb"
-  cpu_kind = "shared"
-  cpus     = 1
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

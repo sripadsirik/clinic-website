@@ -27,7 +27,7 @@
     },
     "extra": {
       "apiBaseDev": "http://192.168.68.79:4000",
-      "apiBaseProd": "https://clinic-website-api.onrender.com",
+      "apiBaseProd": "https://clinic-scraper.fly.dev",
       "eas": {
         "projectId": "71c923cc-b4eb-4f89-96c9-9bae65a62b5a"
       }
