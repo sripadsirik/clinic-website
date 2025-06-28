@@ -142,6 +142,23 @@ function buildDateFilter(start, end) {
   return { date: { $gte: start, $lte: end } };
 }
 
+// buildExcludeFilter helper - excludes No-Show and Rescheduled data
+function buildExcludeFilter() {
+  return {
+    status: {
+      $nin: [
+        "No-Show/Resched",
+        "No-Show",
+        "no-show",
+        "Rescheduled", 
+        "rescheduled",
+        "Reschedule",
+        "reschedule"
+      ]
+    }
+  };
+}
+
 // ── 1) Leaderboard endpoint ────────────────────────────────────────────────────
 // Returns an array of { location, leaderboard:[{doctor,count}...] }
 app.get('/api/leaderboard', async (req, res) => {
@@ -166,8 +183,9 @@ app.get('/api/leaderboard', async (req, res) => {
     for (const loc of locs) {
       const coll = mongoose.connection.db.collection(loc.replace(/\s+/g,'_'));
       const statuses = STATUS_MAP[loc] || [];
+      const excludeFilter = buildExcludeFilter();
       const pipeline = [
-        { $match: { ...filter, status: { $in: statuses } } },
+        { $match: { ...filter, ...excludeFilter, status: { $in: statuses } } },
         { $group: { _id: '$doctor', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ];
@@ -197,13 +215,15 @@ app.get('/api/kpis', async (req, res) => {
 
     const byLocation = [];
     const byDoctor   = [];
+    const excludeFilter = buildExcludeFilter();
+    
     for (const loc of locs) {
       const coll = mongoose.connection.db.collection(loc.replace(/\s+/g,'_'));
-      const total = await coll.countDocuments(filter);
+      const total = await coll.countDocuments({ ...filter, ...excludeFilter });
       byLocation.push({ location: loc, patientsSeen: total });
 
       const docs = await coll.aggregate([
-        { $match: filter },
+        { $match: { ...filter, ...excludeFilter } },
         { $group: { _id: '$doctor', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]).toArray();
@@ -239,6 +259,8 @@ app.get('/api/comparison', async (req, res) => {
 
     async function countFor(year) {
       const results = [];
+      const excludeFilter = buildExcludeFilter();
+      
       for (let m = 0; m <= currentMonth; m++) {
         const start = new Date(year, m, 1);
         const end   = new Date(year, m+1, 1);
@@ -254,7 +276,7 @@ app.get('/api/comparison', async (req, res) => {
               $gte: start.toISOString().slice(0,10),
               $lt:  end.toISOString().slice(0,10)
             },
-            // status: { $ne: null }
+            ...excludeFilter
           });
           monthTotal += cnt;
         }));

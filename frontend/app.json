@@ -23,7 +23,7 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/iconwe.png"
     },
     "extra": {
       "apiBaseDev": "http://192.168.68.79:4000",
