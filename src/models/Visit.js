@@ -10,6 +10,7 @@ const VisitSchema = new mongoose.Schema({
   patient:  { type: String, required: true },
   doctor:   { type: String, default: null },
   type:     { type: String, default: null },
+  reason:   { type: String, default: null },
 }, {
   timestamps: true
 });

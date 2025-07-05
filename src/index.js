@@ -101,11 +101,12 @@
 
 
 
-// src/index.js
+src/index.js
 require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
 const mongoose = require('mongoose');
+// const { syncLocationsRange } = require('./scraper'); // scraping disabled
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -126,6 +127,12 @@ mongoose
 
 app.use(cors());
 app.use(express.json());
+
+// log incoming requests
+app.use((req, res, next) => {
+  console.log(`> ${req.method} ${req.originalUrl}`, req.query);
+  next();
+});
 
 // Clinics list
 const ALL_LOCATIONS = [
@@ -150,12 +157,13 @@ function buildExcludeFilter() {
         "No-Show/Resched",
         "No-Show",
         "no-show",
-        "Rescheduled", 
+        "Rescheduled",
         "rescheduled",
         "Reschedule",
         "reschedule"
       ]
-    }
+    },
+    reason: { $not: /^No Show/ }
   };
 }
 
@@ -170,24 +178,15 @@ app.get('/api/leaderboard', async (req, res) => {
     const locs = (location === 'All') ? ALL_LOCATIONS : [location];
     const filter = buildDateFilter(startDate, endDate);
 
-    const STATUS_MAP = {
-      'Orland Park':  ['MD Exit','OD Exit'],
-      'Oak Lawn':     ['MD Exit','OD/Post-Op Exit'],
-      'Albany Park':  ['Exit'],
-      'Buffalo Grove':['Exit'],
-      'OakBrook':     ['Exit'],
-      'Schaumburg':   ['Exit'],
-    };
-
+    // raw visits leaderboard: count all visits per doctor
     const results = [];
     for (const loc of locs) {
       const coll = mongoose.connection.db.collection(loc.replace(/\s+/g,'_'));
-      const statuses = STATUS_MAP[loc] || [];
-      const excludeFilter = buildExcludeFilter();
       const pipeline = [
-        { $match: { ...filter, ...excludeFilter, status: { $in: statuses } } },
+        // exclude visits with a reason starting "No Show"
+        { $match: { ...filter, reason: { $not: /^No Show/ } } },
         { $group: { _id: '$doctor', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
+        { $sort: { count: -1 } }
       ];
       const agg = await coll.aggregate(pipeline).toArray();
       results.push({
@@ -203,7 +202,7 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ── 2) KPI endpoint ───────────────────────────────────────────────────────────
-// Returns { byLocation:[{location,patientsSeen}], byDoctor:[{location,perDoctor:[{doctor,count}]}] }
+// Returns { byLocation:[{location,patientsSeen}], byDoctor:[{location,perDoctor:[{doctor,count}]}], byNewPatients:[{location,newPatients}] }
 app.get('/api/kpis', async (req, res) => {
   try {
     const { location = 'All', startDate, endDate } = req.query;
@@ -215,6 +214,7 @@ app.get('/api/kpis', async (req, res) => {
 
     const byLocation = [];
     const byDoctor   = [];
+    const byNewPatients = [];
     const excludeFilter = buildExcludeFilter();
     
     for (const loc of locs) {
@@ -231,8 +231,17 @@ app.get('/api/kpis', async (req, res) => {
         location: loc,
         perDoctor: docs.map(d => ({ doctor: d._id, count: d.count }))
       });
+
+      // New patients calculation - count visits with type "NEW PATIENT"
+      const newPatientCount = await coll.countDocuments({ 
+        ...filter, 
+        ...excludeFilter,
+        type: "NEW PATIENT"
+      });
+      
+      byNewPatients.push({ location: loc, newPatients: newPatientCount });
     }
-    res.json({ byLocation, byDoctor });
+    res.json({ byLocation, byDoctor, byNewPatients });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -247,7 +256,7 @@ app.get('/api/comparison', async (req, res) => {
     if (!location) {
       return res.status(400).json({ error: 'location is required' });
     }
-    // if someone does happen to send “All”, just treat it as all real locations:
+    // if someone does happen to send "All", just treat it as all real locations:
     const isAll = location === 'All';
     if (isAll) location = undefined;
 
@@ -297,6 +306,47 @@ app.get('/api/comparison', async (req, res) => {
       lastYear: lastYearCounts,
     });
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Root endpoint and visits retrieval
+app.get('/', (req, res) => res.send('🚀 visits-scraper API up; try GET /api/visits'));
+app.get('/api/visits', async (req, res) => {
+  try {
+    // determine which locations to include
+    let locations;
+    if (req.query.locations) {
+      locations = Array.isArray(req.query.locations) ? req.query.locations : [req.query.locations];
+    } else if (req.query.location) {
+      locations = [req.query.location];
+    } else {
+      locations = ALL_LOCATIONS;
+    }
+    // validate date parameters
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    let { date, startDate, endDate } = req.query;
+    if (date) {
+      if (!iso.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+      startDate = endDate = date;
+    } else {
+      if (!iso.test(startDate) || !iso.test(endDate)) {
+        return res.status(400).json({ error: 'startDate & endDate must be YYYY-MM-DD' });
+      }
+    }
+    const db = mongoose.connection.db;
+    // scraping disabled; just use existing MongoDB data
+
+    // fetch and return all visits
+    let all = [];
+    for (const loc of locations) {
+      const coll = db.collection(loc.replace(/\s+/g, '_'));
+      const docs = await coll.find({ date: { $gte: startDate, $lte: endDate } }).sort({ date:1, time:1 }).toArray();
+      all = all.concat(docs);
+    }
+    res.json(all);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

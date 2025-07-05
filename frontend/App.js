@@ -24,6 +24,14 @@ import { LineChart } from 'react-native-chart-kit';
 const API_BASE     = 'https://clinic-scraper.fly.dev';
 const SCREEN_WIDTH = Dimensions.get('window').width - 48; // More margin for mobile
 
+// Helper to get local date string (not UTC)
+const getLocalDateString = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Enhanced color palette
 const COLORS = {
   primary: '#6C63FF',
@@ -49,20 +57,22 @@ const LOCATIONS        = ['All','Oak Lawn','Orland Park','Albany Park','Buffalo 
 const LOCATIONS_NO_ALL = LOCATIONS.slice(1);
 const MONTH_NAMES      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PRESETS = {
-  'Today':        () => { const d=new Date().toISOString().slice(0,10); return {startDate:d,endDate:d}; },
-  'Yesterday':    () => { const d=new Date(); d.setDate(d.getDate()-1); const s=d.toISOString().slice(0,10); return {startDate:s,endDate:s}; },
+  'Today':        () => { const d=getLocalDateString(new Date()); return {startDate:d,endDate:d}; },
+  'Yesterday':    () => { const d=new Date(); d.setDate(d.getDate()-1); const s=getLocalDateString(d); return {startDate:s,endDate:s}; },
   'Week To Date': () => {
-    const now=new Date(), mon=new Date(now);
-    mon.setDate(now.getDate() - ((now.getDay()+6)%7));
-    return { startDate:mon.toISOString().slice(0,10), endDate:now.toISOString().slice(0,10) };
+    const now = new Date();
+    // calculate start of week as Monday (ISO week)
+    const start = new Date(now);
+    start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    return { startDate: getLocalDateString(start), endDate: getLocalDateString(now) };
   },
   'Month To Date':() => {
     const now=new Date(), first=new Date(now.getFullYear(),now.getMonth(),1);
-    return { startDate:first.toISOString().slice(0,10), endDate:now.toISOString().slice(0,10) };
+    return { startDate:getLocalDateString(first), endDate:getLocalDateString(now) };
   },
   'Year To Date': () => {
     const now=new Date(), first=new Date(now.getFullYear(),0,1);
-    return { startDate:first.toISOString().slice(0,10), endDate:now.toISOString().slice(0,10) };
+    return { startDate:getLocalDateString(first), endDate:getLocalDateString(now) };
   },
 };
 
@@ -129,28 +139,40 @@ function TimeRangePicker({ onRangeChange }) {
   const [mode, setMode]         = useState('Preset');
   const [preset, setPreset]     = useState('Today');
   const [custom, setCustom]     = useState({ start:new Date(), end:new Date() });
-  const [monthYear, setMonth]   = useState({ month:new Date().getMonth(), year:new Date().getFullYear() });
+  const [monthYear, setMonth]   = useState(() => ({ 
+    month: new Date().getMonth(), 
+    year: new Date().getFullYear() 
+  }));
   const [showDP, setShowDP]     = useState(null);
+  // For web date inputs - separate text state to allow partial editing
+  const [dateTexts, setDateTexts] = useState({ 
+    start: new Date().toISOString().slice(0,10), 
+    end: new Date().toISOString().slice(0,10) 
+  });
 
   // compute dates
   const computed = useMemo(() => {
     if (mode==='Preset') return PRESETS[preset]();
     if (mode==='Custom') {
       return {
-        startDate: custom.start.toISOString().slice(0,10),
-        endDate:   custom.end  .toISOString().slice(0,10),
+        startDate: getLocalDateString(custom.start),
+        endDate:   getLocalDateString(custom.end),
       };
     }
     // By month
-    const s = new Date(monthYear.year, monthYear.month, 1).toISOString().slice(0,10);
-    const e = new Date(monthYear.year, monthYear.month+1, 0).toISOString().slice(0,10);
+    const s = getLocalDateString(new Date(monthYear.year, monthYear.month, 1));
+    const e = getLocalDateString(new Date(monthYear.year, monthYear.month+1, 0));
+    console.log('ByMonth calculation:', { mode, monthYear, startDate: s, endDate: e });
     return { startDate:s, endDate:e };
   }, [mode,preset,custom,monthYear]);
 
-  // **always** notify parent on mount and whenever computed changes
+  // Keep dateTexts in sync with custom dates (for when native picker changes dates)
   useEffect(() => {
-    onRangeChange(computed);
-  }, [computed]);
+    setDateTexts({
+      start: getLocalDateString(custom.start),
+      end: getLocalDateString(custom.end)
+    });
+  }, [custom.start, custom.end]);
 
   return <>
     <TouchableOpacity style={styles.selectorButton} onPress={()=>setVisible(true)}>
@@ -214,7 +236,10 @@ function TimeRangePicker({ onRangeChange }) {
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={monthYear.month}
-                      onValueChange={m=>setMonth(y=>({...y,month:m}))}
+                      onValueChange={m => {
+                        setMode('ByMonth');
+                        setMonth(prev => ({ ...prev, month: m }));
+                      }}
                       style={styles.modalPicker}
                       itemStyle={styles.pickerItem}
                     >
@@ -229,11 +254,14 @@ function TimeRangePicker({ onRangeChange }) {
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={monthYear.year}
-                      onValueChange={y=>setMonth(m=>({...m,year:y}))}
+                      onValueChange={y => {
+                        setMode('ByMonth');
+                        setMonth(prev => ({ ...prev, year: y }));
+                      }}
                       style={styles.modalPicker}
                       itemStyle={styles.pickerItem}
                     >
-                      {[2023,2024,2025].map(y=>
+                      {[2022,2023,2024,2025].map(y=>
                         <Picker.Item key={y} label={`${y}`} value={y}/>
                       )}
                     </Picker>
@@ -252,19 +280,23 @@ function TimeRangePicker({ onRangeChange }) {
                   {Platform.OS === 'web' ? (
                     <TextInput
                       style={styles.webDateInput}
-                      value={custom.start.toISOString().slice(0,10)}
+                      value={dateTexts.start}
                       onChangeText={(text) => {
+                        setDateTexts(prev => ({...prev, start: text}));
+                        // Only update the actual date if the text is a valid date
                         const date = new Date(text);
-                        if (!isNaN(date.getTime())) {
+                        if (!isNaN(date.getTime()) && text.length === 10) {
                           setCustom(c => ({...c, start: date}));
                         }
                       }}
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor={COLORS.gray}
+                      clearTextOnFocus={true}
+                      selectTextOnFocus={true}
                     />
                   ) : (
                     <TouchableOpacity style={styles.dateButton} onPress={()=>setShowDP('start')}>
-                      <Text style={styles.dateButtonText}>{custom.start.toISOString().slice(0,10)}</Text>
+                      <Text style={styles.dateButtonText}>{getLocalDateString(custom.start)}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -273,19 +305,23 @@ function TimeRangePicker({ onRangeChange }) {
                   {Platform.OS === 'web' ? (
                     <TextInput
                       style={styles.webDateInput}
-                      value={custom.end.toISOString().slice(0,10)}
+                      value={dateTexts.end}
                       onChangeText={(text) => {
+                        setDateTexts(prev => ({...prev, end: text}));
+                        // Only update the actual date if the text is a valid date
                         const date = new Date(text);
-                        if (!isNaN(date.getTime())) {
+                        if (!isNaN(date.getTime()) && text.length === 10) {
                           setCustom(c => ({...c, end: date}));
                         }
                       }}
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor={COLORS.gray}
+                      clearTextOnFocus={true}
+                      selectTextOnFocus={true}
                     />
                   ) : (
                     <TouchableOpacity style={styles.dateButton} onPress={()=>setShowDP('end')}>
-                      <Text style={styles.dateButtonText}>{custom.end.toISOString().slice(0,10)}</Text>
+                      <Text style={styles.dateButtonText}>{getLocalDateString(custom.end)}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -301,7 +337,7 @@ function TimeRangePicker({ onRangeChange }) {
             </View>
           )}
 
-          <TouchableOpacity style={styles.doneButton} onPress={()=>setVisible(false)}>
+          <TouchableOpacity style={styles.doneButton} onPress={() => { onRangeChange(computed); setVisible(false); }}>
             <Text style={styles.doneButtonText}>Apply Selection</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -437,7 +473,7 @@ function KPIsScreen() {
       <View style={styles.headerRow}>
         <ModalDropdown label="Location"  options={LOCATIONS} selected={location} onChange={setLocation}/>
         <TimeRangePicker             onRangeChange={setRange}/>
-        <ModalDropdown label="View" options={['location','doctor']} selected={kpiType} onChange={setKpiType}/>
+        <ModalDropdown label="View" options={['location','doctor','new-patients']} selected={kpiType} onChange={setKpiType}/>
       </View>
 
       {loading && (
@@ -467,6 +503,28 @@ function KPIsScreen() {
                       <View style={styles.kpiValue}>
                         <Text style={styles.kpiNumber}>{l.patientsSeen}</Text>
                         <Text style={styles.kpiLabel}>patients</Text>
+                      </View>
+                    </View>
+                    <View style={styles.progressBarContainer}>
+                      <View style={styles.progressBarTrack}>
+                        <View style={[styles.progressBarFill, {width: `${pct}%`}]} />
+                      </View>
+                      <Text style={styles.progressPercentage}>{Math.round(pct)}%</Text>
+                    </View>
+                  </View>
+                );
+              })
+            : kpiType === 'new-patients'
+            ? (data.byNewPatients || []).map(l => {
+                const max = Math.max(...(data.byNewPatients || []).map(x=>x.newPatients),1);
+                const pct = (l.newPatients/max)*100;
+                return (
+                  <View key={l.location} style={styles.kpiCard}>
+                    <View style={styles.kpiHeader}>
+                      <Text style={styles.kpiTitle}>🆕 {l.location}</Text>
+                      <View style={styles.kpiValue}>
+                        <Text style={styles.kpiNumber}>{l.newPatients}</Text>
+                        <Text style={styles.kpiLabel}>new patients</Text>
                       </View>
                     </View>
                     <View style={styles.progressBarContainer}>
@@ -677,6 +735,7 @@ export default function App() {
             ),
           }}
         />
+        {/*
         <Tab.Screen 
           name="Comparison" 
           component={ComparisonScreen}
@@ -686,6 +745,7 @@ export default function App() {
             ),
           }}
         />
+        */}
       </Tab.Navigator>
     </NavigationContainer>
   );

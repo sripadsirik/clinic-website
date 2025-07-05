@@ -29,7 +29,7 @@ async function loginAndClickSubmit(page) {
   // 1) go to Nextech login
   await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle2' })
 
-  // 2) optional “I use an email…” button
+  // 2) optional "I use an email…" button
   try {
     await clickButtonByText(page, 'button', 'I use an email address to login')
     await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 })
@@ -49,7 +49,7 @@ async function loginAndClickSubmit(page) {
 
   console.log('🔐 Logged in to Nextech')
 
-  // 5) handle any EHR “Submit” landing form
+  // 5) handle any EHR "Submit" landing form
   try {
     await Promise.race([
       page.waitForSelector('#ui_DDLocation',                     { visible: true, timeout: 10000 }),
@@ -108,7 +108,7 @@ async function setDate(page, date) {
 
 // scrapeVisitsForDate stays the same, because now no nav happens mid-evaluate
 async function scrapeVisitsForDate(page, location, date) {
-  const cutoff = '2025-05-22'
+  const cutoff = '2025-05-31'
   let boxes, statusMap
 
   if (date < cutoff) {
@@ -161,6 +161,7 @@ async function scrapeVisitsForDate(page, location, date) {
         const title   = li.getAttribute('title') || ''
         const mDoc    = title.match(/Doctor:\s*([^\n]+)/)
         const mTyp    = title.match(/Type:\s*([^\n]+)/)
+        const mRes    = title.match(/Reason:\s*([^\n]+)/)
         const boxId   = li.closest('ul[data-role="droptarget"]').id
         out.push({
           location: loc,
@@ -169,7 +170,8 @@ async function scrapeVisitsForDate(page, location, date) {
           time,
           patient,
           doctor:   mDoc ? mDoc[1].trim() : null,
-          type:     mTyp ? mTyp[1].trim() : null
+          type:     mTyp ? mTyp[1].trim() : null,
+          reason:   mRes ? mRes[1].trim() : null
         })
       })
     })
@@ -218,14 +220,14 @@ async function syncLocationsRange(locations, startDate, endDate) {
         )
         count++
       }
-      console.log(`✅ Upserted ${count} rows into “${safeLoc}”`)
+      console.log(`✅ Upserted ${count} rows into "${safeLoc}"`)
 
       // 5) optional CSV dump
       fs.mkdirSync('logs_dump', { recursive: true })
       const csvPath = path.join('logs_dump', `${safeLoc}_${iso}.csv`)
-      const header  = 'status,time,patient,doctor,type\n'
+      const header  = 'status,time,patient,doctor,type,reason\n'
       const rows    = visits
-        .map(v => [v.status, v.time, v.patient, v.doctor||'', v.type||''].join(','))
+        .map(v => [v.status, v.time, v.patient, v.doctor||'', v.type||'', v.reason||''].join(','))
         .join('\n')
       fs.writeFileSync(csvPath, header + rows, 'utf8')
     }
