@@ -27,7 +27,8 @@ async function delay(ms) {
 // log in flow
 async function loginAndClickSubmit(page) {
   // 1) go to Nextech login
-  await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle2' })
+  await page.goto('https://login.nextech.com/', { waitUntil: 'networkidle0', timeout: 60000 })
+  await delay(1000)
 
   // 2) optional "I use an email…" button
   try {
@@ -64,6 +65,9 @@ async function loginAndClickSubmit(page) {
   } catch {
     console.log('⚠️ No EHR landing form; assuming already on dashboard')
   }
+
+  // wait briefly to allow Kendo datepicker widget to render
+  await delay(20000)
 
   // 6) wait for the datepicker to be visible
   await page.waitForSelector('#datepicker', { visible: true, timeout: 30000 })
@@ -183,10 +187,20 @@ async function scrapeVisitsForDate(page, location, date) {
 async function syncLocationsRange(locations, startDate, endDate) {
   const db      = mongoose.connection.db
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--window-size=1280,800'
+    ],
+    defaultViewport: { width: 1280, height: 800 }
   })
   const page = await browser.newPage()
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+    'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/114.0.0.0 Safari/537.36'
+  )
 
   // 1) log in & land on dashboard
   await loginAndClickSubmit(page)
