@@ -75,6 +75,8 @@ def login(driver):
     WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.ID, 'datepicker')))
     delay(2000)
 
+
+
 # Change clinic location
 def change_location(driver, new_loc):
     print(f"change_location: waiting for location dropdown to appear")
@@ -147,47 +149,76 @@ def scrape_visits_for_date(driver, location, date_str):
             'Schaumburg':    (['box439','box440'], {'box439':'No-Show/Resced','box440':'Exit'})
         }
         boxes, status_map = loc_map.get(location, ([], {}))
+        
     visits = []
     for bid in boxes:
-        ul = driver.find_element(By.ID, bid)
-        lis = ul.find_elements(By.TAG_NAME, 'li')
-        for li in lis:
-            raw = li.text.strip()
-            parts = raw.split()
-            time_part = parts[0]
-            patient = ' '.join(parts[1:])
-            title = li.get_attribute('title') or ''
-            d_match = None
-            t_match = None
-            r_match = None
-            import re
-            mDoc = re.search(r'Doctor:\s*([^\n]+)', title)
-            mTyp = re.search(r'Type:\s*([^\n]+)', title)
-            mRes = re.search(r'Reason:\s*([^\n]+)', title)
-            visits.append({
-                'location': location,
-                'date': date_str,
-                'status': status_map.get(bid, None),
-                'time': time_part,
-                'patient': patient,
-                'doctor': mDoc.group(1).strip() if mDoc else None,
-                'type': mTyp.group(1).strip() if mTyp else None,
-                'reason': mRes.group(1).strip() if mRes else None
-            })
+        # Add retry logic to handle stale element references
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Wait for the element to be present and stable
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, bid))
+                )
+                # Small delay to let DOM settle
+                delay(500)
+                
+                # Re-find the ul element each time to avoid stale references
+                ul = driver.find_element(By.ID, bid)
+                lis = ul.find_elements(By.TAG_NAME, 'li')
+                
+                for li in lis:
+                    raw = li.text.strip()
+                    parts = raw.split()
+                    time_part = parts[0]
+                    patient = ' '.join(parts[1:])
+                    title = li.get_attribute('title') or ''
+                    d_match = None
+                    t_match = None
+                    r_match = None
+                    import re
+                    mDoc = re.search(r'Doctor:\s*([^\n]+)', title)
+                    mTyp = re.search(r'Type:\s*([^\n]+)', title)
+                    mRes = re.search(r'Reason:\s*([^\n]+)', title)
+                    visits.append({
+                        'location': location,
+                        'date': date_str,
+                        'status': status_map.get(bid, None),
+                        'time': time_part,
+                        'patient': patient,
+                        'doctor': mDoc.group(1).strip() if mDoc else None,
+                        'type': mTyp.group(1).strip() if mTyp else None,
+                        'reason': mRes.group(1).strip() if mRes else None
+                    })
+                break  # Success, exit retry loop
+                
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed for box {bid}: {e}")
+                if attempt == max_retries - 1:
+                    print(f"Failed to scrape box {bid} after {max_retries} attempts")
+                else:
+                    delay(1000)  # Wait before retry
+                    
     return visits
 
 
 # Sync missing dates for each location
 def sync_locations_range(locations, start_date, end_date):
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1280,800')
+    options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument('--disable-blink-features=AutomationControlled')
     # always use webdriver-manager to download a matching ChromeDriver
     driver_path = ChromeDriverManager().install()
     driver = webdriver.Chrome(service=Service(driver_path), options=options)
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': 'Object.defineProperty(navigator, "webdriver", { get: () => undefined });'
+    })
     login(driver)
     for loc in locations:
         change_location(driver, loc)

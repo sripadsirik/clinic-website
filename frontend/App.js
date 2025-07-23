@@ -92,6 +92,30 @@ const chartConfig = {
   fillShadowGradientToOpacity: 0.0,
 };
 
+// Map of doctor codes to full names
+const DOCTOR_NAMES = {
+  MA: 'Mohammad Al-Khudari',
+  DN: 'Dzung Nguyen',
+  AG: 'Azalea Garcia',
+  WK: 'Wassia Khaja-Ahmed',
+  SR: 'Sanjay Rao',
+  NC: 'Nicholas Chan',
+  IM: 'Ibrahim Mohsin',
+  RT: 'Reeham Tineh',
+  GP: 'George Pappas',
+  HP: 'Hiral Patel',
+  IL: 'Iwona Lazarz',
+  HD: 'Haris Dzubur',
+  JC: 'James Carroll',
+};
+
+// Helper to get full doctor name from code
+const getDoctorName = (code) => {
+  const [base, ...rest] = code.split(' ');
+  const name = DOCTOR_NAMES[base] || base;
+  return rest.length > 0 ? `${name} ${rest.join(' ')}` : name;
+};
+
 const Tab = createBottomTabNavigator();
 
 // — reusable modal dropdown —
@@ -150,21 +174,34 @@ function TimeRangePicker({ onRangeChange }) {
     end: new Date().toISOString().slice(0,10) 
   });
 
+  // Year options for ByMonth mode
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear; y >= currentYear - 5; y--) {
+      years.push(y);
+    }
+    return years;
+  }, []);
+
   // compute dates
   const computed = useMemo(() => {
-    if (mode==='Preset') return PRESETS[preset]();
-    if (mode==='Custom') {
+    if (mode === 'Preset') return PRESETS[preset]();
+    if (mode === 'Custom') {
+      // For custom mode, use raw text input values without auto-correction
       return {
-        startDate: getLocalDateString(custom.start),
-        endDate:   getLocalDateString(custom.end),
+        startDate: dateTexts.start,
+        endDate:   dateTexts.end,
       };
     }
     // By month
-    const s = getLocalDateString(new Date(monthYear.year, monthYear.month, 1));
-    const e = getLocalDateString(new Date(monthYear.year, monthYear.month+1, 0));
+    const yearNum = Number(monthYear.year);
+    const monthNum = Number(monthYear.month);
+    const s = getLocalDateString(new Date(yearNum, monthNum, 1));
+    const e = getLocalDateString(new Date(yearNum, monthNum + 1, 0));
     console.log('ByMonth calculation:', { mode, monthYear, startDate: s, endDate: e });
-    return { startDate:s, endDate:e };
-  }, [mode,preset,custom,monthYear]);
+    return { startDate: s, endDate: e };
+  }, [mode, preset, monthYear, dateTexts]);
 
   // Keep dateTexts in sync with custom dates (for when native picker changes dates)
   useEffect(() => {
@@ -238,7 +275,7 @@ function TimeRangePicker({ onRangeChange }) {
                       selectedValue={monthYear.month}
                       onValueChange={m => {
                         setMode('ByMonth');
-                        setMonth(prev => ({ ...prev, month: m }));
+                        setMonth(prev => ({ ...prev, month: Number(m) }));
                       }}
                       style={styles.modalPicker}
                       itemStyle={styles.pickerItem}
@@ -256,12 +293,12 @@ function TimeRangePicker({ onRangeChange }) {
                       selectedValue={monthYear.year}
                       onValueChange={y => {
                         setMode('ByMonth');
-                        setMonth(prev => ({ ...prev, year: y }));
+                        setMonth(prev => ({ ...prev, year: Number(y) }));
                       }}
                       style={styles.modalPicker}
                       itemStyle={styles.pickerItem}
                     >
-                      {[2022,2023,2024,2025].map(y=>
+                      {yearOptions.map(y =>
                         <Picker.Item key={y} label={`${y}`} value={y}/>
                       )}
                     </Picker>
@@ -283,11 +320,6 @@ function TimeRangePicker({ onRangeChange }) {
                       value={dateTexts.start}
                       onChangeText={(text) => {
                         setDateTexts(prev => ({...prev, start: text}));
-                        // Only update the actual date if the text is a valid date
-                        const date = new Date(text);
-                        if (!isNaN(date.getTime()) && text.length === 10) {
-                          setCustom(c => ({...c, start: date}));
-                        }
                       }}
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor={COLORS.gray}
@@ -308,11 +340,6 @@ function TimeRangePicker({ onRangeChange }) {
                       value={dateTexts.end}
                       onChangeText={(text) => {
                         setDateTexts(prev => ({...prev, end: text}));
-                        // Only update the actual date if the text is a valid date
-                        const date = new Date(text);
-                        if (!isNaN(date.getTime()) && text.length === 10) {
-                          setCustom(c => ({...c, end: date}));
-                        }
                       }}
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor={COLORS.gray}
@@ -413,7 +440,7 @@ function LeaderboardScreen() {
                       <Text style={[styles.rankText, i < 3 && styles.rankTextMedal]}>{i+1}</Text>
                     </View>
                     <View style={styles.doctorInfo}>
-                      <Text style={styles.lbDoctor}>Dr. {d.doctor}</Text>
+                      <Text style={styles.lbDoctor}>Dr. {getDoctorName(d.doctor)}</Text>
                       {i === 0 && <Text style={styles.topPerformer}>🥇 Top Performer</Text>}
                     </View>
                     <View style={styles.countBadge}>
@@ -551,7 +578,7 @@ function KPIsScreen() {
                       return (
                         <View key={d.doctor} style={[styles.doctorKpiRow, index === 0 && styles.topDoctorRow]}>
                           <View style={styles.doctorKpiInfo}>
-                            <Text style={styles.doctorKpiName}>Dr. {d.doctor}</Text>
+                            <Text style={styles.doctorKpiName}>Dr. {getDoctorName(d.doctor)}</Text>
                             {index === 0 && <Text style={styles.topDoctorBadge}>🏆 Top</Text>}
                           </View>
                           <View style={styles.doctorKpiMetrics}>
