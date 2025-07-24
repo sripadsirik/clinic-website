@@ -470,6 +470,7 @@ function KPIsScreen() {
   const [range,    setRange]    = useState(PRESETS['Today']());
   const [kpiType,  setKpiType]  = useState('location');
   const [data,     setData]     = useState(null);
+  const [techData, setTechData] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
 
@@ -478,17 +479,26 @@ function KPIsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const qs  = new URLSearchParams({ location, ...range }).toString();
-        const res = await fetch(`${API_BASE}/api/kpis?${qs}`);
-        if (!res.ok) throw new Error(res.status);
-        setData(await res.json());
+        if (kpiType === 'technicians') {
+          const qs  = new URLSearchParams({ location, ...range }).toString();
+          const res = await fetch(`${API_BASE}/api/techs?${qs}`);
+          if (!res.ok) throw new Error(res.status);
+          setTechData(await res.json());
+          setData(null);
+        } else {
+          const qs  = new URLSearchParams({ location, ...range }).toString();
+          const res = await fetch(`${API_BASE}/api/kpis?${qs}`);
+          if (!res.ok) throw new Error(res.status);
+          setData(await res.json());
+          setTechData(null);
+        }
       } catch(e) {
         setError(e.message);
       } finally {
         setLoading(false);
       }
     })();
-  }, [location, range]);
+  }, [location, range, kpiType]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -500,7 +510,7 @@ function KPIsScreen() {
       <View style={styles.headerRow}>
         <ModalDropdown label="Location"  options={LOCATIONS} selected={location} onChange={setLocation}/>
         <TimeRangePicker             onRangeChange={setRange}/>
-        <ModalDropdown label="View" options={['location','doctor','new-patients']} selected={kpiType} onChange={setKpiType}/>
+        <ModalDropdown label="View" options={['location','doctor','new-patients','technicians']} selected={kpiType} onChange={setKpiType}/>
       </View>
 
       {loading && (
@@ -560,6 +570,57 @@ function KPIsScreen() {
                       </View>
                       <Text style={styles.progressPercentage}>{Math.round(pct)}%</Text>
                     </View>
+                  </View>
+                );
+              })
+            : kpiType === 'technicians'
+            ? (techData || []).map(group => {
+                return (
+                  <View key={group.location} style={styles.leaderboardCard}>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardTitle}>🔧 Technicians - {group.location}</Text>
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{group.technicians.length} techs</Text>
+                      </View>
+                    </View>
+                    {group.technicians.length > 0
+                      ? group.technicians.map((tech, techIndex) => (
+                          <View key={tech.user} style={[styles.techSection, techIndex === 0 && styles.topTechSection]}>
+                            <View style={[styles.lbRow, styles.techMainRow]}>
+                              <View style={[styles.rankBadge, techIndex === 0 && styles.rankBadgeGold, techIndex === 1 && styles.rankBadgeSilver, techIndex === 2 && styles.rankBadgeBronze]}>
+                                <Text style={[styles.rankText, techIndex < 3 && styles.rankTextMedal]}>{techIndex + 1}</Text>
+                              </View>
+                              <View style={styles.doctorInfo}>
+                                <Text style={styles.lbDoctor}>{tech.user}</Text>
+                                {techIndex === 0 && <Text style={styles.topPerformer}>🥇 Top Technician</Text>}
+                              </View>
+                              <View style={styles.countBadge}>
+                                <Text style={styles.lbCount}>{tech.totalTasks}</Text>
+                                <Text style={styles.visitLabel}>tasks</Text>
+                              </View>
+                            </View>
+                            {tech.doctors.map((doctor, docIndex) => (
+                              <View key={`${tech.user}-${doctor.doctor}`} style={styles.techSubRow}>
+                                <View style={styles.techSubIndent} />
+                                <View style={styles.doctorInfo}>
+                                  <Text style={styles.techSubDoctor}>Dr. {getDoctorName(doctor.doctor)}</Text>
+                                </View>
+                                <View style={styles.countBadge}>
+                                  <Text style={styles.techSubCount}>{doctor.taskCount}</Text>
+                                  <Text style={styles.visitLabel}>tasks</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        ))
+                      : (
+                        <View style={styles.noDataContainer}>
+                          <Text style={styles.noDataIcon}>🔧</Text>
+                          <Text style={styles.noDataText}>No technician data available</Text>
+                          <Text style={styles.noDataSubtext}>Try selecting a different date range</Text>
+                        </View>
+                      )
+                    }
                   </View>
                 );
               })
@@ -1374,5 +1435,49 @@ const styles = StyleSheet.create({
   chart: {
     borderRadius: 16,
     marginVertical: 8,
+  },
+
+  // Technician styles
+  techSection: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+  },
+  topTechSection: {
+    backgroundColor: COLORS.lightGray,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderBottomWidth: 0,
+    marginBottom: 16,
+    paddingBottom: 12,
+  },
+  techMainRow: {
+    borderBottomWidth: 0,
+    paddingBottom: 8,
+  },
+  techSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingLeft: 20,
+    borderBottomWidth: 0,
+  },
+  techSubIndent: {
+    width: 32,
+    marginRight: 8,
+  },
+  techSubDoctor: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.gray,
+    fontStyle: 'italic',
+  },
+  techSubCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+    textAlign: 'center',
   },
 });

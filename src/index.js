@@ -84,12 +84,12 @@ app.get('/api/leaderboard', async (req, res) => {
   const filter = buildDateFilter(startDate, endDate);
 
   // ensure data exists for full range via Python Selenium scraper
-  console.log(`🔄 scraping missing data for ${locs.join(', ')} from ${startDate} to ${endDate}`);
-  const lbResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locs, startDate, endDate], { stdio: 'inherit' });
-  if (lbResult.status !== 0) {
-    console.error(`Leaderboard scraper failed: ${lbResult.status}`);
-    return res.status(500).json({ error: `leaderboard scraper failed: ${lbResult.status}` });
-  }
+  // console.log(`🔄 scraping missing data for ${locs.join(', ')} from ${startDate} to ${endDate}`);
+  // const lbResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locs, startDate, endDate], { stdio: 'inherit' });
+  // if (lbResult.status !== 0) {
+  //   console.error(`Leaderboard scraper failed: ${lbResult.status}`);
+  //   return res.status(500).json({ error: `leaderboard scraper failed: ${lbResult.status}` });
+  // }
 
   const results = [];
   for (const loc of locs) {
@@ -114,12 +114,12 @@ app.get('/api/kpis', async (req, res) => {
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate & endDate required' });
   const locs    = (location === 'All') ? ALL_LOCATIONS : [location];
   // ensure data exists for full range via Python Selenium scraper
-  console.log(`🔄 scraping missing data for ${locs.join(', ')} from ${startDate} to ${endDate}`);
-  const kpiResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locs, startDate, endDate], { stdio: 'inherit' });
-  if (kpiResult.status !== 0) {
-    console.error(`KPI scraper failed: ${kpiResult.status}`);
-    return res.status(500).json({ error: `kpi scraper failed: ${kpiResult.status}` });
-  }
+  // console.log(`🔄 scraping missing data for ${locs.join(', ')} from ${startDate} to ${endDate}`);
+  // const kpiResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locs, startDate, endDate], { stdio: 'inherit' });
+  // if (kpiResult.status !== 0) {
+  //   console.error(`KPI scraper failed: ${kpiResult.status}`);
+  //   return res.status(500).json({ error: `kpi scraper failed: ${kpiResult.status}` });
+  // }
   const filter       = buildDateFilter(startDate, endDate);
   const exclude      = buildExcludeFilter();
   const byLocation   = [];
@@ -171,30 +171,30 @@ app.get('/api/visits', async (req, res) => {
     const db = mongoose.connection.db;
 
     // if requesting a single date and data is missing, trigger Python Selenium scraper
-    if (date) {
-      const toScrape = [];
-      for (const loc of locations) {
-        const coll = db.collection(loc.replace(/\s+/g, '_'));
-        const exists = await coll.findOne({ date });
-        if (!exists) toScrape.push(loc);
-      }
-      if (toScrape.length) {
-        console.log(`🔄 scraping missing data for ${toScrape.join(', ')} on ${date}`);
-        const result = spawnSync(pythonBinary, ['src/scraperselenium.py', ...toScrape, date, date], { stdio: 'inherit' });
-        if (result.status !== 0) {
-          console.error(`Scraper exited with code ${result.status}`);
-          return res.status(500).json({ error: `scraper failed: ${result.status}` });
-        }
-      }
-    } else {
-      // if requesting a date range, trigger Python Selenium scraper for full range
-      console.log(`🔄 scraping missing range ${startDate} to ${endDate} for ${locations.join(', ')}`);
-      const rangeResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locations, startDate, endDate], { stdio: 'inherit' });
-      if (rangeResult.status !== 0) {
-        console.error(`Range scraper exited with code ${rangeResult.status}`);
-        return res.status(500).json({ error: `range scraper failed: ${rangeResult.status}` });
-      }
-    }
+    // if (date) {
+    //   const toScrape = [];
+    //   for (const loc of locations) {
+    //     const coll = db.collection(loc.replace(/\s+/g, '_'));
+    //     const exists = await coll.findOne({ date });
+    //     if (!exists) toScrape.push(loc);
+    //   }
+    //   if (toScrape.length) {
+    //     console.log(`🔄 scraping missing data for ${toScrape.join(', ')} on ${date}`);
+    //     const result = spawnSync(pythonBinary, ['src/scraperselenium.py', ...toScrape, date, date], { stdio: 'inherit' });
+    //     if (result.status !== 0) {
+    //       console.error(`Scraper exited with code ${result.status}`);
+    //       return res.status(500).json({ error: `scraper failed: ${result.status}` });
+    //     }
+    //   }
+    // } else {
+    //   // if requesting a date range, trigger Python Selenium scraper for full range
+    //   console.log(`🔄 scraping missing range ${startDate} to ${endDate} for ${locations.join(', ')}`);
+    //   const rangeResult = spawnSync(pythonBinary, ['src/scraperselenium.py', ...locations, startDate, endDate], { stdio: 'inherit' });
+    //   if (rangeResult.status !== 0) {
+    //     console.error(`Range scraper exited with code ${rangeResult.status}`);
+    //     return res.status(500).json({ error: `range scraper failed: ${rangeResult.status}` });
+    //   }
+    // }
     
     // fetch and return all visits
     let all = [];
@@ -230,6 +230,80 @@ app.post('/api/scrape', (req, res) => {
     if (code === 0) res.json({ status: 'completed' });
     else res.status(500).json({ status: 'error', code });
   });
+});
+
+// ── 4) Technicians endpoint ─────────────────────────────────────────────────────
+// Returns technician leaderboard with sub-breakdown by doctor
+app.get('/api/techs', async (req, res) => {
+  try {
+    const { location = 'All', startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate & endDate required' });
+    }
+    const locs = (location === 'All') ? ALL_LOCATIONS : [location];
+    const filter = buildDateFilter(startDate, endDate);
+
+    // Connect to technicians database
+    const techsDb = mongoose.connection.client.db('technicians');
+    
+    const results = [];
+    for (const loc of locs) {
+      const coll = techsDb.collection(loc.replace(/\s+/g, '_'));
+      
+      // Aggregate pipeline to group by user, then by doctor within each user
+      const pipeline = [
+        { $match: filter },
+        {
+          $group: {
+            _id: {
+              user: '$user',
+              doctor: '$doctor'
+            },
+            taskCount: { $sum: '$task_count' }
+          }
+        },
+        {
+          $group: {
+            _id: '$_id.user',
+            totalTasks: { $sum: '$taskCount' },
+            doctors: {
+              $push: {
+                doctor: '$_id.doctor',
+                taskCount: '$taskCount'
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            user: '$_id',
+            totalTasks: 1,
+            doctors: {
+              $sortArray: {
+                input: '$doctors',
+                sortBy: { taskCount: -1 }
+              }
+            }
+          }
+        },
+        { $sort: { totalTasks: -1 } }
+      ];
+      
+      const agg = await coll.aggregate(pipeline).toArray();
+      results.push({
+        location: loc,
+        technicians: agg.map(t => ({
+          user: t.user,
+          totalTasks: t.totalTasks,
+          doctors: t.doctors
+        }))
+      });
+    }
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
