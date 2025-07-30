@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   SafeAreaView,
   View,
@@ -23,6 +23,7 @@ import { LineChart } from 'react-native-chart-kit';
 // const API_BASE     = 'http://localhost:4000'; // Use your local server or deployed URL
 const API_BASE     = 'https://clinic-scraper.fly.dev';
 const SCREEN_WIDTH = Dimensions.get('window').width - 48; // More margin for mobile
+const REFRESH_INTERVAL_MS = 570000000000000; // auto-refresh every 10 seconds
 
 // Helper to get local date string (not UTC)
 const getLocalDateString = (date) => {
@@ -375,31 +376,88 @@ function TimeRangePicker({ onRangeChange }) {
 
 // — Leaderboard Tab —
 function LeaderboardScreen() {
+  // setup auto-scroll refs and timers
+  const scrollRef = useRef(null);
+  const isWeb = Platform.OS === 'web';
+  const [contentHeight, setContentHeight] = useState(0);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const inactivityTimer = useRef(null);
+  const autoScrollInterval = useRef(null);
+  const scrollDown = useRef(true);
+  const currentOffset = useRef(0);
+  const SCROLL_STEP = 1;
+  const SCROLL_INTERVAL_MS = 20;
+  const resetAutoScroll = () => {
+    if (!isWeb) return;
+    clearTimeout(inactivityTimer.current);
+    clearInterval(autoScrollInterval.current);
+    scrollDown.current = true;
+    currentOffset.current = 0;
+    inactivityTimer.current = setTimeout(() => {
+      if (scrollRef.current && contentHeight > scrollViewHeight) {
+        autoScrollInterval.current = setInterval(() => {
+          if (scrollDown.current) {
+            currentOffset.current = Math.min(currentOffset.current + SCROLL_STEP, contentHeight - scrollViewHeight);
+            if (currentOffset.current >= contentHeight - scrollViewHeight) {
+              scrollDown.current = false;
+            }
+          } else {
+            currentOffset.current = Math.max(0, currentOffset.current - SCROLL_STEP);
+            if (currentOffset.current <= 0) {
+              scrollDown.current = true;
+            }
+          }
+          scrollRef.current.scrollTo({ y: currentOffset.current, animated: false });
+        }, SCROLL_INTERVAL_MS);
+      }
+    }, 10000);
+  };
+  useEffect(() => {
+    if (!isWeb) return;
+    resetAutoScroll();
+    return () => {
+      clearTimeout(inactivityTimer.current);
+      clearInterval(autoScrollInterval.current);
+    };
+  }, [contentHeight, scrollViewHeight]);
   const [location, setLocation] = useState('All');
   const [range,    setRange]    = useState(PRESETS['Today']());
   const [data,     setData]     = useState([]);
+  const [techData, setTechData] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const qs  = new URLSearchParams({ location, ...range }).toString();
-        const res = await fetch(`${API_BASE}/api/leaderboard?${qs}`);
-        if (!res.ok) throw new Error(res.status);
-        setData(await res.json());
-      } catch(e) {
+        const qs = new URLSearchParams({ location, ...range }).toString();
+        const [docRes, techRes] = await Promise.all([
+          fetch(`${API_BASE}/api/leaderboard?${qs}`),
+          fetch(`${API_BASE}/api/techs?${qs}`)
+        ]);
+        if (!docRes.ok || !techRes.ok) throw new Error(`Error fetching leaderboards`);
+        setData(await docRes.json());
+        setTechData(await techRes.json());
+      } catch (e) {
         setError(e.message);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [location, range]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={styles.safe}
+      onStartShouldSetResponder={isWeb ? () => true : undefined}
+      onResponderGrant={isWeb ? resetAutoScroll : undefined}
+    >
       <View style={styles.headerGradient}>
         <Text style={styles.screenTitle}>🏆 Doctor Leaderboard</Text>
         <Text style={styles.screenSubtitle}>Top performing doctors by patient visits</Text>
@@ -424,20 +482,120 @@ function LeaderboardScreen() {
         </View>
       )}
       
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {data.map(g=>(
-          <View key={g.location} style={styles.leaderboardCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>📍 {g.location}</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{g.leaderboard.length} doctors</Text>
-              </View>
+      {isWeb ? (
+        <ScrollView
+          ref={scrollRef}
+          onContentSizeChange={(w, h) => setContentHeight(h)}
+          onLayout={e => setScrollViewHeight(e.nativeEvent.layout.height)}
+          onTouchStart={resetAutoScroll}
+          onScrollBeginDrag={resetAutoScroll}
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              {data.map(g => (
+                <View key={g.location} style={styles.leaderboardCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>📍 {g.location}</Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{g.leaderboard.length} doctors</Text>
+                    </View>
+                  </View>
+                  {g.leaderboard.length>0
+                    ? g.leaderboard.map((d,i)=>(
+                        <View key={d.doctor} style={[styles.lbRow, i === 0 && styles.lbRowFirst]}>
+                          <View style={[styles.rankBadge, i === 0 && styles.rankBadgeGold, i === 1 && styles.rankBadgeSilver, i === 2 && styles.rankBadgeBronze]}>
+                            <Text style={[styles.rankText, i < 3 && styles.rankTextMedal]}>{i+1}</Text>
+                          </View>
+                          <View style={styles.doctorInfo}>
+                            <Text style={styles.lbDoctor}>Dr. {getDoctorName(d.doctor)}</Text>
+                            {i === 0 && <Text style={styles.topPerformer}>🥇 Top Performer</Text>}
+                          </View>
+                          <View style={styles.countBadge}>
+                            <Text style={styles.lbCount}>{d.count}</Text>
+                            <Text style={styles.visitLabel}>visits</Text>
+                          </View>
+                        </View>
+                      ))
+                    : (
+                      <View style={styles.noDataContainer}>
+                        <Text style={styles.noDataIcon}>📊</Text>
+                        <Text style={styles.noDataText}>No data available</Text>
+                        <Text style={styles.noDataSubtext}>Try selecting a different date range</Text>
+                      </View>
+                    )
+                  }
+                </View>
+              ))}
             </View>
-            {g.leaderboard.length>0
-              ? g.leaderboard.map((d,i)=>(
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              {(techData || []).map(group => (
+                <View key={group.location} style={styles.leaderboardCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>🔧 Technicians - {group.location}</Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{group.technicians.length} techs</Text>
+                    </View>
+                  </View>
+                  {group.technicians.length > 0
+                    ? group.technicians.map((tech, techIndex) => (
+                        <View key={tech.user} style={[styles.techSection, techIndex === 0 && styles.topTechSection]}>
+                          <View style={[styles.lbRow, styles.techMainRow]}>
+                            <View style={[styles.rankBadge, techIndex === 0 && styles.rankBadgeGold, techIndex === 1 && styles.rankBadgeSilver, techIndex === 2 && styles.rankBadgeBronze]}>
+                              <Text style={[styles.rankText, techIndex < 3 && styles.rankTextMedal]}>{techIndex + 1}</Text>
+                            </View>
+                            <View style={styles.doctorInfo}>
+                              <Text style={styles.lbDoctor}>{tech.user}</Text>
+                              {techIndex === 0 && <Text style={styles.topPerformer}>🥇 Top Technician</Text>}
+                            </View>
+                            <View style={styles.countBadge}>
+                              <Text style={styles.lbCount}>{tech.totalTasks}</Text>
+                              <Text style={styles.visitLabel}>tasks</Text>
+                            </View>
+                          </View>
+                          {tech.doctors.map((doctor, docIndex) => (
+                            <View key={`${tech.user}-${doctor.doctor}`} style={styles.techSubRow}>
+                              <View style={styles.techSubIndent} />
+                              <View style={styles.doctorInfo}>
+                                <Text style={styles.techSubDoctor}>Dr. {getDoctorName(doctor.doctor)}</Text>
+                              </View>
+                              <View style={styles.countBadge}>
+                                <Text style={styles.techSubCount}>{doctor.taskCount}</Text>
+                                <Text style={styles.visitLabel}>tasks</Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      ))
+                    : (
+                      <View style={styles.noDataContainer}>
+                        <Text style={styles.noDataIcon}>🔧</Text>
+                        <Text style={styles.noDataText}>No technician data available</Text>
+                        <Text style={styles.noDataSubtext}>Try selecting a different date range</Text>
+                      </View>
+                    )
+                  }
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      ) : (
+        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          {data.map(g => (
+            <View key={g.location} style={styles.leaderboardCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>📍 {g.location}</Text>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{g.leaderboard.length} doctors</Text>
+                </View>
+              </View>
+              {g.leaderboard.length > 0 ? (
+                g.leaderboard.map((d, i) => (
                   <View key={d.doctor} style={[styles.lbRow, i === 0 && styles.lbRowFirst]}>
                     <View style={[styles.rankBadge, i === 0 && styles.rankBadgeGold, i === 1 && styles.rankBadgeSilver, i === 2 && styles.rankBadgeBronze]}>
-                      <Text style={[styles.rankText, i < 3 && styles.rankTextMedal]}>{i+1}</Text>
+                      <Text style={[styles.rankText, i < 3 && styles.rankTextMedal]}>{i + 1}</Text>
                     </View>
                     <View style={styles.doctorInfo}>
                       <Text style={styles.lbDoctor}>Dr. {getDoctorName(d.doctor)}</Text>
@@ -449,17 +607,17 @@ function LeaderboardScreen() {
                     </View>
                   </View>
                 ))
-              : (
+              ) : (
                 <View style={styles.noDataContainer}>
                   <Text style={styles.noDataIcon}>📊</Text>
                   <Text style={styles.noDataText}>No data available</Text>
                   <Text style={styles.noDataSubtext}>Try selecting a different date range</Text>
                 </View>
-              )
-            }
-          </View>
-        ))}
-      </ScrollView>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -473,31 +631,48 @@ function KPIsScreen() {
   const [techData, setTechData] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
+  // aggregate doctor counts across all locations
+  const aggregatedDoctors = useMemo(() => {
+    if (!data?.byDoctor) return [];
+    const counts = {};
+    data.byDoctor.forEach(group => {
+      group.perDoctor.forEach(d => {
+        counts[d.doctor] = (counts[d.doctor] || 0) + d.count;
+      });
+    });
+    return Object.entries(counts)
+      .map(([doctor, count]) => ({ doctor, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [data]);
 
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
         if (kpiType === 'technicians') {
-          const qs  = new URLSearchParams({ location, ...range }).toString();
+          const qs = new URLSearchParams({ location, ...range }).toString();
           const res = await fetch(`${API_BASE}/api/techs?${qs}`);
           if (!res.ok) throw new Error(res.status);
           setTechData(await res.json());
           setData(null);
         } else {
-          const qs  = new URLSearchParams({ location, ...range }).toString();
+          const qs = new URLSearchParams({ location, ...range }).toString();
           const res = await fetch(`${API_BASE}/api/kpis?${qs}`);
           if (!res.ok) throw new Error(res.status);
           setData(await res.json());
           setTechData(null);
         }
-      } catch(e) {
+      } catch (e) {
         setError(e.message);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [location, range, kpiType]);
 
   return (
@@ -510,7 +685,7 @@ function KPIsScreen() {
       <View style={styles.headerRow}>
         <ModalDropdown label="Location"  options={LOCATIONS} selected={location} onChange={setLocation}/>
         <TimeRangePicker             onRangeChange={setRange}/>
-        <ModalDropdown label="View" options={['location','doctor','new-patients','technicians']} selected={kpiType} onChange={setKpiType}/>
+        <ModalDropdown label="View" options={['location','doctor','new-patients','technicians','all-doctors']} selected={kpiType} onChange={setKpiType}/>
       </View>
 
       {loading && (
@@ -624,6 +799,40 @@ function KPIsScreen() {
                   </View>
                 );
               })
+            : kpiType === 'all-doctors'
+            ? (
+              <View key="all-doctors" style={styles.kpiCard}>
+                <View style={styles.kpiHeader}>
+                  <Text style={styles.kpiTitle}>👨‍⚕️ All Doctors</Text>
+                  <View style={styles.kpiValue}>
+                    <Text style={styles.kpiNumber}>{aggregatedDoctors.length}</Text>
+                    <Text style={styles.kpiLabel}>doctors</Text>
+                  </View>
+                </View>
+                {aggregatedDoctors.map((d, index) => {
+                  const max = aggregatedDoctors[0]?.count || 1;
+                  const pct = (d.count / max) * 100;
+                  return (
+                    <View key={d.doctor} style={[styles.doctorKpiRow, index === 0 && styles.topDoctorRow]}>
+                      <View style={styles.doctorKpiInfo}>
+                        <Text style={styles.doctorKpiName}>Dr. {getDoctorName(d.doctor)}</Text>
+                        {index === 0 && <Text style={styles.topDoctorBadge}>🏆 Top</Text>}
+                      </View>
+                      <View style={styles.doctorKpiMetrics}>
+                        <View style={styles.progressBarContainer}>
+                          <View style={styles.progressBarTrack}>
+                            <View style={[styles.progressBarFill, {width: `${pct}%`}]} />
+                          </View>
+                        </View>
+                        <View style={styles.doctorKpiValue}>
+                          <Text style={styles.doctorKpiNumber}>{d.count}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )
             : data.byDoctor.map(group => {
                 return (
                   <View key={group.location} style={styles.kpiCard}>
@@ -674,20 +883,24 @@ function ComparisonScreen() {
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const qs  = new URLSearchParams({ location, ...range }).toString();
+        const qs = new URLSearchParams({ location, ...range }).toString();
         const res = await fetch(`${API_BASE}/api/comparison?${qs}`);
         if (!res.ok) throw new Error(res.status);
         setData(await res.json());
-      } catch(e) {
+      } catch (e) {
         setError(e.message);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [location, range]);
 
   if (loading) return (

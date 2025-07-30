@@ -39,6 +39,7 @@ ALL_LOCATIONS = [
 
 # ── HELPERS ─────────────────────────────────────────────────────────────────────
 def delay(ms: int):
+    """Pause for exactly ms milliseconds."""
     time.sleep(ms / 1000.0)
 
 def date_range(start_str: str, end_str: str):
@@ -54,7 +55,7 @@ techs_db = client['technicians']
 # ── SELENIUM SETUP ───────────────────────────────────────────────────────────────
 def make_driver():
     opts = webdriver.ChromeOptions()
-    opts.add_argument('--headless=new')  # uncomment to run headless
+    # opts.add_argument('--headless=new')
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
     opts.add_argument('--disable-gpu')
@@ -67,7 +68,6 @@ def make_driver():
         service=Service(ChromeDriverManager().install()),
         options=opts
     )
-    # hide webdriver flag
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
         'source': 'Object.defineProperty(navigator, "webdriver", {get:()=>undefined});'
     })
@@ -81,83 +81,61 @@ def login(driver):
             EC.element_to_be_clickable((By.XPATH,
                 "//button[contains(text(),'I use an email address to login')]"))
         ).click()
-    except:
+    except TimeoutException:
         pass
 
-    WebDriverWait(driver, 30).until(
-        EC.visibility_of_element_located((By.NAME, 'username'))
-    ).send_keys(NEXTECH_USER)
+    WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.NAME, 'username')))\
+                         .send_keys(NEXTECH_USER)
     driver.find_element(By.XPATH, "//button[text()='Continue']").click()
 
-    WebDriverWait(driver, 30).until(
-        EC.visibility_of_element_located((By.XPATH, "//input[@type='password']"))
-    ).send_keys(NEXTECH_PASS)
+    WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.XPATH, "//input[@type='password']")))\
+                         .send_keys(NEXTECH_PASS)
     try:
         driver.find_element(By.XPATH, "//button[text()='Sign In']").click()
     except:
         driver.find_element(By.XPATH, "//button[text()='Continue']").click()
 
-    # optional extra submit
     try:
         WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH,
                 "//input[@type='submit' and @value='Submit']"))
         ).click()
-    except:
+    except TimeoutException:
         pass
 
     WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.ID, 'datepicker')))
     delay(2000)
 
 def navigate_to_user_task_summary(driver):
-    # Admin → Reports → Standard Reports → User Task Summary
-    WebDriverWait(driver,20).until(EC.element_to_be_clickable((By.LINK_TEXT, 'Admin'))).click()
-    WebDriverWait(driver,20).until(EC.element_to_be_clickable((By.LINK_TEXT, 'Reports'))).click()
-    delay(500)
+    wait = WebDriverWait(driver, 20)
 
-    WebDriverWait(driver,20).until(
-        EC.element_to_be_clickable((By.ID, 'ctl00_pnlMenu_hlJaspersoftReports'))
-    ).click()
-    delay(500)
+    wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'Admin'))).click()
+    wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'Reports'))).click()
+    wait.until(EC.element_to_be_clickable((By.ID, 'ctl00_pnlMenu_hlJaspersoftReports'))).click()
+    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.mat-select-trigger'))).click()
+    wait.until(EC.element_to_be_clickable((By.XPATH,
+        "//mat-option//span[normalize-space(.)='User Task Summary']"
+    ))).click()
 
-    WebDriverWait(driver,20).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.mat-select-trigger'))
-    ).click()
-    WebDriverWait(driver,20).until(
-        EC.element_to_be_clickable((By.XPATH,
-            "//mat-option//span[normalize-space(.)='User Task Summary']"
-        ))
-    ).click()
-    delay(1000)
-
-    # ── Select "Tech WU" ONCE ────────────────────────────────────────────────
-    ms_boxes = WebDriverWait(driver,10).until(
-        lambda d: d.find_elements(By.CSS_SELECTOR, 'div.jr-mInputControlMultiSelect')
-    )
-    task_box = ms_boxes[2]  # 3rd box is Task
+    delay(10000)   # let the multi‑selects fully render
+    boxes = wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, 'div.jr-mInputControlMultiSelect'))
+    task_box = boxes[2]
     task_box.find_element(By.CSS_SELECTOR, '.jr-mMultiselect-toggleContainer').click()
-    WebDriverWait(driver,5).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, 'ul.jr-mSelectlist li.jr-mSelectlist-item'))
-    )
-    delay(3000)
-    for li in task_box.find_elements(By.CSS_SELECTOR, 'li.jr-mSelectlist-item'):
-        if li.get_attribute('title').strip() == 'Tech WU':
-            li.click()
-            break
-    delay(5000)
-    # leave the task box closed so we don’t re-open it every scrape
+    delay(3000)    # wait for the list items
+    wait.until(EC.element_to_be_clickable((By.XPATH,
+        "//li[@title='Tech WU' and contains(@class,'jr-mSelectlist-item')]"
+    ))).click()
+    delay(300)
 
 # ── SCRAPER ──────────────────────────────────────────────────────────────────────
 def scrape_for_date_and_location(driver, location: str, date_str: str):
-    # 1) Set From/To dates
-    from_inp = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[id^="jr-label-id-FromDate"]'))
-    )
-    to_inp   = driver.find_element(By.CSS_SELECTOR, 'input[id^="jr-label-id-ToDate"]')
-    driver.execute_script("arguments[0].removeAttribute('readonly')", from_inp)
-    driver.execute_script("arguments[0].removeAttribute('readonly')", to_inp)
+    wait = WebDriverWait(driver, 20)
 
-    for inp in (from_inp, to_inp):
+    # set date
+    frm = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[id^="jr-label-id-FromDate"]')))
+    to  = driver.find_element(By.CSS_SELECTOR, 'input[id^="jr-label-id-ToDate"]')
+    for inp in (frm, to):
+        driver.execute_script("arguments[0].removeAttribute('readonly')", inp)
         inp.clear()
         inp.send_keys(date_str)
         inp.send_keys(Keys.ENTER)
@@ -182,52 +160,55 @@ def scrape_for_date_and_location(driver, location: str, date_str: str):
             break
     delay(300)
 
-    # 3) Apply Filters
-    driver.find_element(By.XPATH, "//button[text()='Apply Filters']").click()
-    # give it up to 10s for data to arrive
+    # apply filters
+    wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Apply Filters']"))).click()
     delay(10000)
+    
+    # Check if there's any data - if not, return empty list
     try:
-        WebDriverWait(driver, 10).until(
-            lambda d: d.find_elements(By.CSS_SELECTOR, 'td.jrcel')
-        )
+        wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, 'div._jr_report_container_ td.jrcel'))
     except TimeoutException:
-        print(f"[no data] {location} {date_str}")
+        print(f"[DEBUG] No data elements found for {location} {date_str}")
         return []
 
-    report_container = driver.find_element(By.CSS_SELECTOR, 'div._jr_report_container_')
+    # dump HTML for inspection
+    report = driver.find_element(By.CSS_SELECTOR, 'div._jr_report_container_')
+    html = report.get_attribute('outerHTML')
+    dump_filename = f"report_{location.replace(' ', '_')}_{date_str}.html"
+    with open(dump_filename, 'w', encoding='utf-8') as f:
+        f.write(html)
+    print(f"[DEBUG] dumped HTML to {dump_filename}")
 
-    # now loop through all pages
+    # now parse rows
     all_rows = []
+    page = 1
+
     while True:
-        # pick the one table with data in it
-        data_table = next(
-            tbl for tbl in report_container.find_elements(By.TAG_NAME, 'table')
-            if tbl.find_elements(By.CSS_SELECTOR, 'td.jrcel')
-        )
+        print(f"[DEBUG] scraping {location} {date_str} page {page}")
 
         # extract rows
-        for tr in data_table.find_elements(By.TAG_NAME, 'tr'):
+        tbl = next(
+            t for t in report.find_elements(By.TAG_NAME, 'table')
+            if t.find_elements(By.CSS_SELECTOR, 'td.jrcel')
+        )
+        rows = tbl.find_elements(By.CSS_SELECTOR, 'tbody tr')
+        print(f"[DEBUG] found {len(rows)} rows")
+        for tr in rows:
             cells = tr.find_elements(By.CSS_SELECTOR, 'td.jrcel')
             if len(cells) < 8:
                 continue
-
             vals = []
             for c in cells[:8]:
                 try:
-                    span = c.find_element(By.CSS_SELECTOR, 'span')
-                    txt  = span.get_attribute('title') or span.text
+                    sp = c.find_element(By.TAG_NAME, 'span')
+                    vals.append(sp.get_attribute('title') or sp.text)
                 except NoSuchElementException:
-                    txt  = c.text.strip()
-                vals.append(txt)
-
+                    vals.append(c.text.strip())
             user, practice, loc, doctor, task, avg, stddev, count = vals
-
-            # ** NEW GUARD: skip rows where avg is blank or non-numeric **
             try:
-                avg_f = float(avg)
+                avg_num = float(avg)
             except ValueError:
-                avg_f = 0.0
-
+                continue
             all_rows.append({
                 'date':           date_str,
                 'user':           user,
@@ -235,59 +216,44 @@ def scrape_for_date_and_location(driver, location: str, date_str: str):
                 'location':       loc,
                 'doctor':         doctor,
                 'task':           task,
-                'avg_minutes':    avg_f,
+                'avg_minutes':    avg_num,
                 'stddev_minutes': float(stddev) if stddev else 0.0,
-                'task_count':     int(count)        if count  else 0,
+                'task_count':     int(count) if count else 0,
             })
 
-        # try to advance to next page
+        # pagination: click single '>' arrow if available and not disabled
         try:
-            # find the "next" arrow
-            next_btn = report_container.find_element(
-                By.XPATH,
-                ".//div[contains(@class,'paging-report')]//a[normalize-space(text())='>']"
-            )
-            if 'disabled' in next_btn.get_attribute('class'):
-                break
-
-            # grab the current page number from the paging input
-            page_input = report_container.find_element(
-                By.XPATH,
-                ".//div[contains(@class,'paging-report')]//input"
-            )
-            old_page = page_input.get_attribute("value")
-
-            # click to load the next page
-            next_btn.click()
-
-            # wait for that input's value to change (i.e. page has actually advanced)
-            WebDriverWait(driver, 10).until(
-                lambda d: report_container.find_element(
-                    By.XPATH,
-                    ".//div[contains(@class,'paging-report')]//input"
-                ).get_attribute("value") != old_page
-            )
-            delay(500)  # give the table a moment to repaint
-
-        except (NoSuchElementException, TimeoutException):
+            nxt = report.find_element(By.XPATH, ".//a[normalize-space(text())='>' and not(contains(@class,'disabled'))]")
+            print("[DEBUG] Clicking next page arrow")
+            delay(500)
+            nxt.click()
+            print("[DEBUG] Waiting 5 seconds for next page to load")
+            delay(5000)
+            # wait until page-number updates
+            page_input = driver.find_element(By.XPATH, "//input[@type='number']")
+            WebDriverWait(driver, 10).until(lambda d: page_input.get_attribute("value") == str(page + 1))
+            page += 1
+            report = driver.find_element(By.CSS_SELECTOR, 'div._jr_report_container_')
+            print(f"[DEBUG] Successfully navigated to page {page}")
+        except NoSuchElementException:
+            print("[DEBUG] Next page arrow not found or disabled, ending pagination")
+            break
+        except TimeoutException:
+            print("[DEBUG] Page did not update in time, ending pagination")
             break
 
+    # de‑dupe
     seen = set()
-    unique_rows = []
+    unique = []
     for r in all_rows:
-        key = (
-            r['date'],
-            r['user'],
-            r['practice'],
-            r['location'],
-            r['doctor'],
-            r['task'],
-        )
+        key = (r['date'], r['user'], r['doctor'], r['avg_minutes'])
         if key in seen:
             continue
         seen.add(key)
-        unique_rows.append(r)
-    return unique_rows
+        unique.append(r)
+
+    print(f"[DEBUG] {len(unique)} unique rows")
+    return unique
 
 # ── MAIN ────────────────────────────────────────────────────────────────────────
 def main(args):
@@ -296,8 +262,7 @@ def main(args):
         sys.exit(1)
 
     if len(args) == 2:
-        locs = ALL_LOCATIONS
-        sd, ed = args
+        locs, sd, ed = ALL_LOCATIONS, args[0], args[1]
     else:
         *locs, sd, ed = args
 
@@ -305,19 +270,20 @@ def main(args):
     try:
         login(driver)
         navigate_to_user_task_summary(driver)
-
         for loc in locs:
             coll = techs_db[loc.replace(' ', '_')]
             for ds in date_range(sd, ed):
-                # skip dates we've already collected
                 if coll.find_one({'date': ds}):
-                    print(f"[skip]   {loc} {ds}")
+                    print(f"[skip] {loc} {ds}")
                     continue
-
                 print(f"[scrape] {loc} {ds}")
                 rows = scrape_for_date_and_location(driver, loc, ds)
                 if rows:
                     coll.insert_many(rows)
+                else:
+                    print(f"[no data] No data found for {loc} {ds}, waiting 10 seconds before continuing...")
+                    time.sleep(10)
+                    print(f"[skip] Skipping {loc} {ds} due to no data")
     finally:
         driver.quit()
 
