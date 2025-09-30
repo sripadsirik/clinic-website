@@ -13,9 +13,12 @@
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "expo": "^54.0.9",
     "express": "^5.1.0",
     "mongodb": "^6.17.0",
     "mongoose": "^8.16.0",
-    "puppeteer": "^24.10.2"
+    "puppeteer": "^24.10.2",
+    "react-dom": "19.1.0",
+    "react-native-web": "^0.21.0"
   }
 }

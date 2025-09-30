@@ -13,9 +13,9 @@ import {
   Platform,
   Dimensions,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LineChart } from 'react-native-chart-kit';
@@ -53,6 +53,10 @@ const COLORS = {
   gradientStart: '#667eea',
   gradientEnd: '#764ba2',
 };
+
+// Simple hardcoded admin credentials
+const ADMIN_USERNAME = 'admin';
+const ADMIN_PASSWORD = 'Admin@123!';
 
 const LOCATIONS        = ['All','Oak Lawn','Orland Park','Albany Park','Buffalo Grove','OakBrook','Schaumburg'];
 const LOCATIONS_NO_ALL = LOCATIONS.slice(1);
@@ -168,8 +172,7 @@ function TimeRangePicker({ onRangeChange }) {
     month: new Date().getMonth(), 
     year: new Date().getFullYear() 
   }));
-  const [showDP, setShowDP]     = useState(null);
-  // For web date inputs - separate text state to allow partial editing
+  // For date inputs - separate text state to allow partial editing
   const [dateTexts, setDateTexts] = useState({ 
     start: new Date().toISOString().slice(0,10), 
     end: new Date().toISOString().slice(0,10) 
@@ -204,13 +207,13 @@ function TimeRangePicker({ onRangeChange }) {
     return { startDate: s, endDate: e };
   }, [mode, preset, monthYear, dateTexts]);
 
-  // Keep dateTexts in sync with custom dates (for when native picker changes dates)
+  // Keep custom Date objects in sync when user edits text
   useEffect(() => {
-    setDateTexts({
-      start: getLocalDateString(custom.start),
-      end: getLocalDateString(custom.end)
-    });
-  }, [custom.start, custom.end]);
+    const s = new Date(dateTexts.start);
+    const e = new Date(dateTexts.end);
+    if (!isNaN(s)) setCustom(c => ({ ...c, start: s }));
+    if (!isNaN(e)) setCustom(c => ({ ...c, end: e }));
+  }, [dateTexts.start, dateTexts.end]);
 
   return <>
     <TouchableOpacity style={styles.selectorButton} onPress={()=>setVisible(true)}>
@@ -315,53 +318,38 @@ function TimeRangePicker({ onRangeChange }) {
               <View style={styles.dateInputs}>
                 <View style={styles.dateInput}>
                   <Text style={styles.dateLabel}>Start Date</Text>
-                  {Platform.OS === 'web' ? (
-                    <TextInput
-                      style={styles.webDateInput}
-                      value={dateTexts.start}
-                      onChangeText={(text) => {
-                        setDateTexts(prev => ({...prev, start: text}));
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={COLORS.gray}
-                      clearTextOnFocus={true}
-                      selectTextOnFocus={true}
-                    />
-                  ) : (
-                    <TouchableOpacity style={styles.dateButton} onPress={()=>setShowDP('start')}>
-                      <Text style={styles.dateButtonText}>{getLocalDateString(custom.start)}</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TextInput
+                    style={Platform.OS === 'web' ? styles.webDateInput : styles.webDateInput}
+                    value={dateTexts.start}
+                    onChangeText={(text) => {
+                      setDateTexts(prev => ({...prev, start: text}));
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={COLORS.gray}
+                    clearTextOnFocus={true}
+                    selectTextOnFocus={true}
+                    keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                    autoCapitalize="none"
+                  />
                 </View>
                 <View style={styles.dateInput}>
                   <Text style={styles.dateLabel}>End Date</Text>
-                  {Platform.OS === 'web' ? (
-                    <TextInput
-                      style={styles.webDateInput}
-                      value={dateTexts.end}
-                      onChangeText={(text) => {
-                        setDateTexts(prev => ({...prev, end: text}));
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={COLORS.gray}
-                      clearTextOnFocus={true}
-                      selectTextOnFocus={true}
-                    />
-                  ) : (
-                    <TouchableOpacity style={styles.dateButton} onPress={()=>setShowDP('end')}>
-                      <Text style={styles.dateButtonText}>{getLocalDateString(custom.end)}</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TextInput
+                    style={Platform.OS === 'web' ? styles.webDateInput : styles.webDateInput}
+                    value={dateTexts.end}
+                    onChangeText={(text) => {
+                      setDateTexts(prev => ({...prev, end: text}));
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={COLORS.gray}
+                    clearTextOnFocus={true}
+                    selectTextOnFocus={true}
+                    keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                    autoCapitalize="none"
+                  />
                 </View>
               </View>
-              {showDP && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={custom[showDP]}
-                  mode="date"
-                  display={Platform.OS==='ios'?'spinner':'calendar'}
-                  onChange={(_,d)=>{ setShowDP(null); if(d) setCustom(c=>({...c,[showDP]:d})); }}
-                />
-              )}
+              {/* No modal/date picker on mobile; users type directly */}
             </View>
           )}
 
@@ -989,6 +977,50 @@ function ComparisonScreen() {
 }
 
 export default function App() {
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    // No persistence: ensure auth resets on reload
+    setIsAuthed(false);
+  }, []);
+
+  const handleLogin = async () => {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      setIsAuthed(true);
+    } else {
+      Alert.alert('Invalid credentials');
+    }
+  };
+
+  if (!isAuthed) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={styles.loginCard}>
+          <Text style={styles.loginTitle}>Admin Login</Text>
+          <TextInput
+            style={styles.loginInput}
+            placeholder="Username"
+            autoCapitalize="none"
+            value={username}
+            onChangeText={setUsername}
+          />
+          <TextInput
+            style={styles.loginInput}
+            placeholder="Password"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+            <Text style={styles.loginButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -1036,7 +1068,7 @@ export default function App() {
             ),
           }}
         />
-        {/*
+        {/**
         <Tab.Screen 
           name="Comparison" 
           component={ComparisonScreen}
@@ -1046,7 +1078,7 @@ export default function App() {
             ),
           }}
         />
-        */}
+        **/}
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -1056,6 +1088,45 @@ const styles = StyleSheet.create({
   safe: { 
     flex: 1, 
     backgroundColor: COLORS.background 
+  },
+
+  // Login styles
+  loginCard: {
+    width: Math.min(SCREEN_WIDTH, Dimensions.get('window').width - 48),
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: COLORS.dark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  loginTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.dark,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  loginInput: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    color: COLORS.dark,
+  },
+  loginButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 16,
   },
 
   // Header styles
