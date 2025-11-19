@@ -20,6 +20,16 @@ load_dotenv()
 MONGO_URI    = os.getenv('MONGO_URI')
 NEXTECH_USER = os.getenv('NEXTECH_USER')
 NEXTECH_PASS = os.getenv('NEXTECH_PASS')
+TWILIO_SID = os.getenv('TWILIO_SID')
+TWILIO_AUTH = os.getenv('TWILIO_AUTH')
+TWILIO_NUM = os.getenv('TWILIO_NUM')
+NUM1 = os.getenv('NUM1')
+NUM2 = os.getenv('NUM2')
+NUM3 = os.getenv('NUM3')
+NUM4 = os.getenv('NUM4')
+NUM5 = os.getenv('NUM5')
+NUM6 = os.getenv('NUM6')
+NUM7 = os.getenv('NUM7')
 CUT_OFF_DATE = '2025-05-31'
 
 client = MongoClient(MONGO_URI)
@@ -32,7 +42,8 @@ ALL_LOCATIONS = [
     'Albany Park',
     'Buffalo Grove',
     'OakBrook',
-    'Schaumburg'
+    'Schaumburg',
+    'DGO-OAK'
 ]
 
 # --- Helper functions ---
@@ -74,8 +85,6 @@ def login(driver):
     # Give datepicker time to load
     WebDriverWait(driver, 30).until(EC.visibility_of_element_located((By.ID, 'datepicker')))
     delay(2000)
-
-
 
 # Change clinic location
 def change_location(driver, new_loc):
@@ -141,12 +150,13 @@ def scrape_visits_for_date(driver, location, date_str):
         status_map = {}
     else:
         loc_map = {
-            'Orland Park':   (['box96','box97','box367'], {'box96':'No-Show/Resced','box97':'MD Exit','box367':'OD Exit'}),
+            'Orland Park':   (['box96','box97','box367'], {'box96':'No-Show/Resched','box97':'MD Exit','box367':'OD Exit'}),
             'Oak Lawn':      (['box63','box66','box366'], {'box63':'No-Show/Resched','box66':'MD Exit','box366':'OD/Post-Op Exit'}),
-            'Albany Park':   (['box358','box352'], {'box358':'No-Show/Resced','box352':'Exit'}),
-            'Buffalo Grove': (['box387','box388'], {'box387':'No-Show/Resced','box388':'Exit'}),
-            'OakBrook':      (['box411','box412'], {'box411':'No-Show/Resced','box412':'Exit'}),
-            'Schaumburg':    (['box439','box440'], {'box439':'No-Show/Resced','box440':'Exit'})
+            'Albany Park':   (['box358','box352'], {'box358':'No-Show/Resched','box352':'Exit'}),
+            'Buffalo Grove': (['box387','box388'], {'box387':'No-Show/Resched','box388':'Exit'}),
+            'OakBrook':      (['box411','box412'], {'box411':'No-Show/Resched','box412':'Exit'}),
+            'Schaumburg':    (['box439','box440'], {'box439':'No-Show/Resched','box440':'Exit'}),
+            'DGO-OAK':       (['box452','box453'], {'box452':'No-Show/Resched','box453':'Exit'}),
         }
         boxes, status_map = loc_map.get(location, ([], {}))
         
@@ -260,3 +270,180 @@ if __name__ == '__main__':
         print('Usage: python scraperselenium.py [<loc1> [<loc2> ...]] <startDate> <endDate>')
         sys.exit(1)
     sync_locations_range(locs, sd, ed)
+
+    # Function to check if there's any data in the database
+    def check_database_status():
+        print("Checking database status...")
+        for location in ALL_LOCATIONS:
+            coll_name = location.replace(' ', '_')
+            coll = db[coll_name]
+            total_docs = coll.count_documents({})
+            print(f"{location}: {total_docs} total documents")
+            if total_docs > 0:
+                # Get the latest date
+                latest_doc = coll.find().sort('date', -1).limit(1)
+                if latest_doc:
+                    latest_date = list(latest_doc)[0]['date']
+                    print(f"  Latest date: {latest_date}")
+    
+    # Check database status first
+    check_database_status()
+    
+    # Function to show recent data for debugging
+    def show_recent_data():
+        print("\nRecent data for debugging:")
+        for location in ALL_LOCATIONS:
+            coll_name = location.replace(' ', '_')
+            coll = db[coll_name]
+            # Get last 5 documents
+            recent_docs = list(coll.find().sort('date', -1).limit(5))
+            if recent_docs:
+                print(f"\n{location} - Last 5 records:")
+                for doc in recent_docs:
+                    print(f"  Date: {doc.get('date', 'N/A')}, Patient: {doc.get('patient', 'N/A')}, Status: {doc.get('status', 'N/A')}, Doctor: {doc.get('doctor', 'N/A')}")
+            else:
+                print(f"\n{location} - No data found")
+    
+    # Show recent data for debugging
+    show_recent_data()
+    
+    # Function to get aggregated data from MongoDB
+    def get_daily_summary():
+        today = datetime.now().strftime('%Y-%m-%d')
+        summary = {
+            'total_visits': 0,
+            'locations': {},
+            'no_shows': 0,
+            'exits': 0,
+            'doctors': {},
+            'debug_info': []  # Add debug information
+        }
+        
+        for location in ALL_LOCATIONS:
+            coll_name = location.replace(' ', '_')
+            coll = db[coll_name]
+            
+            # Count visits for today
+            today_visits = list(coll.find({'date': today}))
+            location_count = len(today_visits)
+            summary['total_visits'] += location_count
+            summary['locations'][location] = location_count
+            
+            # Debug: Log what we found
+            summary['debug_info'].append(f"{location}: {location_count} visits found")
+            
+            # Count no-shows, exits, and track doctors
+            for visit in today_visits:
+                status = visit.get('status', '')
+                doctor = visit.get('doctor', 'Unknown Doctor')
+                patient = visit.get('patient', 'Unknown Patient')
+                
+                # Debug: Log each visit
+                summary['debug_info'].append(f"  - {patient}: status='{status}', doctor='{doctor}'")
+                
+                if status and 'No-Show' in status:
+                    summary['no_shows'] += 1
+                elif status and 'Exit' in status:
+                    summary['exits'] += 1
+                
+                # Count patients per doctor
+                if doctor and doctor != 'Unknown Doctor':
+                    if doctor in summary['doctors']:
+                        summary['doctors'][doctor] += 1
+                    else:
+                        summary['doctors'][doctor] = 1
+        
+        return summary
+
+    # Get today's summary data
+    daily_data = get_daily_summary()
+    
+    # Debug: Print summary to console for troubleshooting
+    print(f"Debug Summary:")
+    print(f"Total visits: {daily_data['total_visits']}")
+    print(f"No-shows: {daily_data['no_shows']}")
+    print(f"Exits: {daily_data['exits']}")
+    for debug_line in daily_data['debug_info']:
+        print(debug_line)
+    
+    # Create enhanced message with MongoDB data
+    message_body = f"""Scraping Complete for Today! 📊
+
+📈 Daily Summary:
+• Total Visits: {daily_data['total_visits']}
+• No-Shows: {daily_data['no_shows']}
+• Completed Exits: {daily_data['exits']}
+
+📍 By Location:"""
+    
+    for location, count in daily_data['locations'].items():
+        if count > 0:
+            message_body += f"\n• {location}: {count} visits"
+        else:
+            message_body += f"\n• {location}: 0 visits"
+    
+    # Add doctor statistics if available
+    if daily_data['doctors']:
+        message_body += "\n\n👨‍⚕️ By Doctor:"
+        # Sort doctors by patient count (descending)
+        sorted_doctors = sorted(daily_data['doctors'].items(), key=lambda x: x[1], reverse=True)
+        for doctor, count in sorted_doctors:
+            message_body += f"\n• Dr. {doctor}: {count} patients"
+    
+    # Add debug information if no visits found
+    if daily_data['total_visits'] == 0:
+        message_body += "\n\n⚠️ Debug Info:"
+        for debug_line in daily_data['debug_info']:
+            message_body += f"\n{debug_line}"
+    
+    message_body += "\n\nCheck the KPI Dashboard for detailed analysis."
+
+    from twilio.rest import Client
+
+    account_sid = TWILIO_SID
+    auth_token = TWILIO_AUTH
+    client = Client(account_sid, auth_token)
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM1
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM2
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM3
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM4
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM5
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM6
+    )
+
+    message = client.messages.create(
+        body=message_body,
+        from_=TWILIO_NUM,
+        to=NUM7
+    )
+
+    print(message.sid)
